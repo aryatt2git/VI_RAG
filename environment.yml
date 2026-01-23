@@ -1,0 +1,10 @@
+name: VI_RAG
+
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+
+dependencies:
+  - python=3.13
+  - pip=25.2
