@@ -5,13 +5,13 @@ services:
     - --host
     - 0.0.0.0
     - --port
-    - '5000'
+    - '5050'
     - --scheme
     - http
     # Replace `1.33.1` with your desired Weaviate version
     image: cr.weaviate.io/semitechnologies/weaviate:1.33.1
     ports:
-    - 5000:5000
+    - 5050:5050
     - 50051:50051
     restart: on-failure:0
     volumes:

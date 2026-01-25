@@ -3,7 +3,7 @@ import weaviate
 
 client = weaviate.connect_to_custom(
     http_host="localhost",
-    http_port=5000,
+    http_port=5050,
     http_secure=False,
     grpc_host="localhost",
     grpc_port=50051,
