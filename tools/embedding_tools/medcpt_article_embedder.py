@@ -1,6 +1,6 @@
 import weaviate
-from gemini_embed_model import embed_model
-from gemini_text2token_chunker import chunk_text_tokens
+from embed_model import embed_model
+from text2token_chunker import chunk_text_tokens
 from transformers import AutoTokenizer, AutoModel
 from weaviate.classes.config import Configure, Property, DataType, VectorDistances
 
