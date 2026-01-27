@@ -27,7 +27,7 @@ def llm_query(model, RAG_query, LLM_query):
     ])
     print(response['message']['content'])
     # or access fields directly from the response object
-    print(response.message.content)
+    #print(response.message.content)
 
 model = 'gpt-oss:120b-cloud'
 rag_query = 'c.301G>A in LDLR'

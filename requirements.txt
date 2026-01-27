@@ -4,7 +4,7 @@ pandas==3.0.0
 requests==2.32.5
 tqdm==4.67.1
 weaviate-client==4.19.2
-ollama==0.6.1
+# ollama==0.6.1
 gql==4.0.0 # requires pip3 installation.
 gql[all]
 gql[aiohttp]

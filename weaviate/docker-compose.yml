@@ -15,7 +15,7 @@ services:
     - 50051:50051
     restart: on-failure:0
     volumes:
-    - weaviate_data:/var/lib/weaviate
+    - ./weaviate_data:/var/lib/weaviate
     env_file:
       - weaviate.env
     environment:
