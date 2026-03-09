@@ -12,10 +12,9 @@ from gql import gql, Client
 from gql.transport.aiohttp import AIOHTTPTransport
 
 
-async def gnomad_query():
+async def gnomad_query(gene_symbol, variant):
 
-    gene_symbol = 'LDLR'
-    variant = 'c.301G>A'
+
 
     vv_url = 'https://rest.variantvalidator.org/VariantValidator/'
 
@@ -60,13 +59,14 @@ async def gnomad_query():
     alt = variant_data[hgvs_nom]["primary_assembly_loci"]["grch38"]["vcf"]["alt"]
 
     gnomad_key = f'{chr}-{pos}-{ref}-{alt}'
+    print(gnomad_key)
 
     transport = AIOHTTPTransport(url="https://gnomad.broadinstitute.org/api")
     client = Client(transport=transport, fetch_schema_from_transport=True)
 
     # For brevity, and to keep the focus on the Python code, we don't include every
     # field from the raw query here.
-
+    '''
     gene_query = gql(
         """
         query VariantsInGene {
@@ -86,39 +86,39 @@ async def gnomad_query():
         }
     """
     )
-
+    '''
     variant_query = gql(
         """
         query GetVariant($id: String!) {
             variant(variantId: $id, dataset: gnomad_r4) {
-                exome {
-                    af
-                    ac
-                    an
-                    ac_hemi
-                    ac_hom
-                    populations {
-                        id
-                        ac
-                        an
-                        ac_hemi
-                        ac_hom
-                    }
-                }
-                genome {
-                    af
-                    ac
-                    an
-                    ac_hemi
-                    ac_hom
-                    populations {
-                        id
-                        ac
-                        an
-                        ac_hemi
-                        ac_hom
-                    }
-                }
+#                exome {
+#                    af
+#                    ac
+#                    an
+#                    ac_hemi
+#                    ac_hom
+#                    populations {
+#                        id
+#                        ac
+#                        an
+#                        ac_hemi
+#                        ac_hom
+#                    }
+#                }
+#                genome {
+#                    af
+#                    ac
+#                    an
+#                    ac_hemi
+#                    ac_hom
+#                    populations {
+#                        id
+#                        ac
+#                        an
+#                        ac_hemi
+#                        ac_hom
+#                    }
+#                }
                 joint {
                     ac
                     an
@@ -148,10 +148,69 @@ async def gnomad_query():
             # print(result)
             # return result
 
-    for dict in results["variant"].items():
-        dict_pp = json.dumps(dict, indent=4)
-        print(dict_pp)
+    pop_af = {}
+
+    for population in results["variant"]['joint']["populations"]:
+
+        if population["id"] == "" and population["homozygote_count"] == 0:
+            pop_af['total'] = {}
+            pop_af['total']['ac'] = population['ac']
+            pop_af['total']['an'] = population['an']
+
+        if population["id"] == "nfe" and population["homozygote_count"] == 0:
+            pop_af['European (non-Finnish)'] = {}
+            pop_af['European (non-Finnish)']['ac'] = population['ac']
+            pop_af['European (non-Finnish)']['an'] = population['an']
+
+        if population["id"] == "sas" and population["homozygote_count"] == 0:
+            pop_af['South Asian'] = {}
+            pop_af['South Asian']['ac'] = population['ac']
+            pop_af['South Asian']['an'] = population['an']
+
+        if population["id"] == "afr" and population["homozygote_count"] == 0:
+            pop_af['African/African American'] = {}
+            pop_af['African/African American']['ac'] = population['ac']
+            pop_af['African/African American']['an'] = population['an']
+
+        if population["id"] == "amr" and population["homozygote_count"] == 0:
+            pop_af['Admixed American'] = {}
+            pop_af['Admixed American']['ac'] = population['ac']
+            pop_af['Admixed American']['an'] = population['an']
+
+        if population["id"] == "asj" and population["homozygote_count"] == 0:
+            pop_af['Ashkenazi Jewish'] = {}
+            pop_af['Ashkenazi Jewish']['ac'] = population['ac']
+            pop_af['Ashkenazi Jewish']['an'] = population['an']
+
+        if population["id"] == "eas" and population["homozygote_count"] == 0:
+            pop_af['East Asian'] = {}
+            pop_af['East Asian']['ac'] = population['ac']
+            pop_af['East Asian']['an'] = population['an']
+
+        if population["id"] == "fin" and population["homozygote_count"] == 0:
+            pop_af['European (Finnish)'] = {}
+            pop_af['European (Finnish)']['ac'] = population['ac']
+            pop_af['European (Finnish)']['an'] = population['an']
+
+        if population["id"] == "mid" and population["homozygote_count"] == 0:
+            pop_af['Middle Eastern'] = {}
+            pop_af['Middle Eastern']['ac'] = population['ac']
+            pop_af['Middle Eastern']['an'] = population['an']
+
+        if population["id"] == "ami" and population["homozygote_count"] == 0:
+            pop_af['Amish'] = {}
+            pop_af['Amish']['ac'] = population['ac']
+            pop_af['Amish']['an'] = population['an']
+
+        if population["id"] == "remaining" and population["homozygote_count"] == 0:
+            pop_af['Remaining'] = {}
+            pop_af['Remaining']['ac'] = population['ac']
+            pop_af['Remaining']['an'] = population['an']
+
+
+    dict_pp = json.dumps(dict(reversed(pop_af.items())), indent=4)
+    print(dict_pp)
 
 
 if __name__ == "__main__":
-    asyncio.run(gnomad_query())
+    asyncio.run(gnomad_query('LDLR', 'c.301G>A'))

@@ -29,8 +29,9 @@ def llm_query(model, RAG_query, LLM_query):
     # or access fields directly from the response object
     print(response.message.content)
 
+
 model = 'gpt-oss:120b-cloud'
 rag_query = 'c.301G>A in LDLR'
-LLM_query = 'how many people have variants in LDLR that cause FH?'
+LLM_query = 'pretend you are a genomic clinical scientist. interpret the variant c.301G>A in LDLR, with regard to its association with familial hypercholesterolaemia, using ACGS 2024 variant interpretation guidelines.'
 
 llm_query(model=model, RAG_query=rag_query, LLM_query=LLM_query)
