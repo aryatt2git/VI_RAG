@@ -1,6 +1,9 @@
 # Secret files
 */weaviate.env
 */weaviate_data/
+VLM_RAG/context/
+VLM_RAG/vector_db/
+VLM_RAG/References/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

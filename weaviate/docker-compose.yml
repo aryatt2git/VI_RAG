@@ -15,7 +15,7 @@ services:
     - 50051:50051
     restart: on-failure:0
     volumes:
-    - ./weaviate_data:/var/lib/weaviate
+    - /home/arjunr/RAG_research_project/VI_RAG/VLM_RAG/vector_db
     env_file:
       - weaviate.env
     environment:
@@ -25,8 +25,4 @@ services:
       ENABLE_API_BASED_MODULES: 'true'
       BACKUP_FILESYSTEM_PATH: '/var/lib/weaviate/backups'
       CLUSTER_HOSTNAME: 'node1'
-      ENABLE_MODULES: text2vec-cohere
-      DEFAULT_VECTORIZER_MODULE: text2vec-cohere
-volumes:
-  weaviate_data:
 ...
