@@ -15,7 +15,7 @@ services:
     - 50051:50051
     restart: on-failure:0
     volumes:
-    - /home/arjunr/RAG_research_project/VI_RAG/VLM_RAG/vector_db
+    - ../VLM_RAG/vector_DB:/var/lib/weaviate
     env_file:
       - weaviate.env
     environment:

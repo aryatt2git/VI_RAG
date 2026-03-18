@@ -43,7 +43,7 @@ with weaviate.connect_to_custom(
 
     if not client.collections.exists("ArticleChunk"):
         client.collections.create(
-            name="ArticleChunk",
+            name="FHArticleChunks",
             vector_config=Configure.Vectors.self_provided(
                 vector_index_config=Configure.VectorIndex.hnsw(
                     distance_metric=VectorDistances.COSINE

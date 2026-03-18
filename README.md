@@ -22,3 +22,8 @@ pip install -r requirements.txt
 cd weaviate
 docker compose up -d
 ```
+
+don't forget to:
+brew install poppler
+brew install tesseract
+brew install tesseract-lang

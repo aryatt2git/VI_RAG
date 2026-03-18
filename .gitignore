@@ -4,6 +4,9 @@
 VLM_RAG/context/
 VLM_RAG/vector_db/
 VLM_RAG/References/
+tools/images/*
+tools/*.pdf
+tools/*.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -103,8 +103,8 @@ def query_PDF_RAG(RAG_query):
             response = collection.query.hybrid(
                 query=RAG_query,
                 vector=query_vector,
-                alpha=0.25,
-                limit=5,
+                alpha=0.5,
+                limit=3,
                 # Use distance instead of score when looking for semantic distance. Score is used for hybrid searches.
                 return_metadata=MetadataQuery(score=True)
             )
