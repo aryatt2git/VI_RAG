@@ -7,7 +7,6 @@ from docling.datamodel.pipeline_options import (
     TesseractCliOcrOptions,
 )
 import os
-import re
 from pathlib import Path
 
 def docling_PDF2Text(filepath:str):
@@ -55,7 +54,7 @@ def docling_FigTableExport(filepath:str):
 
     base_name = os.path.splitext(os.path.basename(input_pdf))[0]
     images_name = base_name.strip().replace(" ", "_")
-    images_dir = f'./images/{images_name}'
+    images_dir = f'./images/'
     if not os.path.exists(images_dir):
         os.makedirs(images_dir, exist_ok=True)
 
@@ -104,6 +103,10 @@ def docling_FigTableExport(filepath:str):
 
     print("---docling complete---")
 
+    return os.path.abspath(images_dir)
+
+"""
 pdf_path = '/Users/arjun/PycharmProjects/VI_RAG/VI_RAG/tools/Hori et al 2019 PMID 31491741.pdf'
 path = docling_PDF2Text(pdf_path)
 docling_FigTableExport(pdf_path)
+"""

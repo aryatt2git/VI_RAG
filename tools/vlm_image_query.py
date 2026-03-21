@@ -13,7 +13,7 @@ def vlm_query(image_path, markdown_path):
     VLM_query = ('Extract genomic variants from the attached image along with the associated gene and any clinically '
                  'relevant information. Analyse the information as comprehensively as possible. Summarise the information '
                  'but do not omit any clinically relevant information. Structure your output into the following JSON format:'
-                 '{"title": "", "authors": [], "type": "", "figure_table_no": "", "caption": "", "description": "", "table": "", "genes_mentioned": [], "variant_count": "", "variants": {"gene": "", "genomic_variant": "", "transcript_variant": "", "exon": "", "protein_variant": "", "protein_domain": "", "clinical_information": "", "clinical_significance": "", "evidence": "", "frequency": "", "hetero_carriers": "", "homo_carriers": "", "affected_carriers": "", "unaffected_carriers": ""}}'
+                 '{"title": "", "authors": [], "type": "", "figure_table_no": "", "caption": "", "description": "", "table": "", "genes_mentioned": [], "variant_count": "", "variants": [{"gene": "", "genomic_variant": "", "transcript_variant": "", "exon": "", "protein_variant": "", "protein_domain": "", "clinical_information": "", "clinical_significance": "", "evidence": "", "frequency": "", "hetero_carriers": "", "homo_carriers": "", "affected_carriers": "", "unaffected_carriers": ""}]}'
                  )
 
     augmented_prompt = f"""
@@ -49,7 +49,7 @@ def vlm_query(image_path, markdown_path):
     - To the 'table' key, if the image is of a table, assign a textualised version of the table that can be embedded by a text embedder.
     - To the 'genes_mentioned' key, assign a list of the name of the genes mentioned in either the image or the caption/legend matched with the image from the markdown file provided as context.
     - To the 'variant_count' key, assign the number of genomic variants that appear in the image and the caption/legend matched with the image from the markdown file provided as context.
-    - To the 'variants' key, assign a nested dictionary for each and every variant mentioned in either the image or the caption/legend matched with the image from the markdown file provided as context. Do not miss any variants out. 
+    - To the 'variants' key, assign a list of objects for each and every variant mentioned in either the image or the caption/legend matched with the image from the markdown file provided as context. Do not miss any variants out. 
     - To the 'gene' key, assign the gene symbol of the gene that the corresponding variant is in.
     - To the 'genomic_variant' key, assign the genomic variant as it appears in the image or the caption/legend matched with the image from the markdown file provided as context. It should start with 'g.' but might not.
     - To the 'transcript_variant' key, assign the variant described at the transcript level as it appears in the image or the caption/legend matched with the image from the markdown file provided as context. It should start with 'c.' but might not.

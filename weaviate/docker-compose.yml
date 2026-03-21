@@ -15,7 +15,7 @@ services:
     - 50051:50051
     restart: on-failure:0
     volumes:
-    - ../VLM_RAG/vector_DB:/var/lib/weaviate
+    - ../tools/vector_DB:/var/lib/weaviate
     env_file:
       - weaviate.env
     environment:

@@ -13,7 +13,7 @@ def loadWeaviate():
     else:
         device = torch.device("cpu")
 
-    model = BGEM3FlagModel('BAAI/bge-m3', use_fp16=True).to(device)
+    model = BGEM3FlagModel('BAAI/bge-m3', use_fp16=True)
 
     return model
 
@@ -109,7 +109,7 @@ def weaviateImportText(dict_list, model):
                     upload_counter = upload_counter + 1
                     continue
 
-                vector = model.encode(var_dict["chunk"]).tolist()
+                vector = model.encode(var_dict["chunk"])['dense_vecs']
 
                 properties = {
                     "title": var_dict["title"],
@@ -235,9 +235,9 @@ def weaviateImportImage(dict_list, model):
 
                 response = collection.query.fetch_objects(
                     filters=Filter.by_property("path").equal(var_dict["path"]) &
-                            Filter.by_property("section_header").equal(var_dict["section_header"]) &
-                            Filter.by_property("subsection_header").equal(var_dict["subsection_header"]) &
-                            Filter.by_property("sub_subsection_header").equal(var_dict["sub_subsection_header"]) &
+                            Filter.by_property("section_header").equal(var_dict["type"]) &
+                            Filter.by_property("subsection_header").equal(var_dict["figure_table_no"]) &
+                            Filter.by_property("sub_subsection_header").equal(var_dict["sub_figure_table_no"]) &
                             Filter.by_property("chunk_idx").equal(var_dict["chunk_idx"]),
                     limit=1
                 )
@@ -247,18 +247,18 @@ def weaviateImportImage(dict_list, model):
                     upload_counter = upload_counter + 1
                     continue
 
-                vector = model.encode(var_dict["chunk"]).tolist()
+                vector = model.encode(var_dict["chunk"])['dense_vecs']
 
                 properties = {
                     "title": var_dict["title"],
                     "authors": var_dict["authors"],
                     "path": var_dict["path"],
-                    "section_header": var_dict["section_header"],
-                    "subsection_header": var_dict["subsection_header"],
-                    "sub_subsection_header": var_dict["sub_subsection_header"],
+                    "section_header": var_dict["type"],
+                    "subsection_header": var_dict["figure_table_no"],
+                    "sub_subsection_header": var_dict["sub_figure_table_no"],
                     "chunk_idx": var_dict["chunk_idx"],
                     "chunk": var_dict["chunk"],
-                    "description": var_dict["description"],
+                    "description": f"Caption: {var_dict['caption']} \nDescription: {var_dict['description']} \nTable: {var_dict['table']}",
                     "genes_mentioned": var_dict["genes_mentioned"],
                     "variant_count": int(var_dict["variant_count"]),
                     "variants": [
