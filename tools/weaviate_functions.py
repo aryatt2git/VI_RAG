@@ -1,21 +1,12 @@
 import torch
+import json
+import numpy as np
 from FlagEmbedding import BGEM3FlagModel
-from transformers import AutoModel, AutoTokenizer
 import weaviate
 import weaviate.classes.config as wvc
 from weaviate.classes.query import Filter
 from weaviate.classes.init import Timeout
 
-def loadWeaviate():
-
-    if torch.backends.mps.is_available():
-        device = torch.device("mps")
-    else:
-        device = torch.device("cpu")
-
-    model = BGEM3FlagModel('BAAI/bge-m3', use_fp16=True)
-
-    return model
 
 def weaviateImportText(dict_list, model):
 
@@ -40,20 +31,40 @@ def weaviateImportText(dict_list, model):
         if not client.collections.exists("FH_PDFs"):
             client.collections.create(
                 name="FH_PDFs",
-                vector_config=wvc.Configure.Vectors.self_provided(
-                    vector_index_config=wvc.Configure.VectorIndex.hnsw(
-                        distance_metric=wvc.VectorDistances.COSINE  # ColBERT uses Dot Product for MaxSim
-                    ),
-                ),
+                vector_config=[
+                    wvc.Configure.Vectors.self_provided(
+                        name="dense",
+                        vector_index_config=wvc.Configure.VectorIndex.hnsw(
+                            distance_metric=wvc.VectorDistances.COSINE  # ColBERT uses Dot Product for MaxSim
+                        ),
+                    )
+                ],
                 # This is the key part for Late Interaction models
                 properties=[
                     wvc.Property(name="title", data_type=wvc.DataType.TEXT),
                     wvc.Property(name="authors", data_type=wvc.DataType.TEXT_ARRAY),
-                    wvc.Property(name="path", data_type=wvc.DataType.TEXT),
+                    wvc.Property(
+                        name="path",
+                        data_type=wvc.DataType.TEXT,
+                        tokenization=wvc.config.Tokenization.FIELD
+                    ),
 
-                    wvc.Property(name="section_header", data_type=wvc.DataType.TEXT),
-                    wvc.Property(name="subsection_header", data_type=wvc.DataType.TEXT),
-                    wvc.Property(name="sub_subsection_header", data_type=wvc.DataType.TEXT),
+                    wvc.Property(
+                        name="section_header",
+                        data_type=wvc.DataType.TEXT,
+                        tokenization=wvc.config.Tokenization.FIELD
+                    ),
+                    wvc.Property(
+                        name="subsection_header",
+                        data_type=wvc.DataType.TEXT,
+                        tokenization=wvc.config.Tokenization.FIELD
+                    ),
+                    wvc.Property(
+                        name="sub_subsection_header",
+                        data_type=wvc.DataType.TEXT,
+                        tokenization=wvc.config.Tokenization.FIELD
+                    ),
+
                     wvc.Property(name="chunk_idx", data_type=wvc.DataType.INT),
 
                     wvc.Property(name="chunk", data_type=wvc.DataType.TEXT),
@@ -61,6 +72,15 @@ def weaviateImportText(dict_list, model):
 
                     wvc.Property(name="genes_mentioned", data_type=wvc.DataType.TEXT_ARRAY),
                     wvc.Property(name="variant_count", data_type=wvc.DataType.INT),
+
+                    wvc.Property(
+                        name="sparse_weights",
+                        data_type=wvc.DataType.OBJECT_ARRAY,
+                        nested_properties=[
+                            wvc.Property(name="token", data_type=wvc.DataType.TEXT),
+                            wvc.Property(name="weight", data_type=wvc.DataType.NUMBER),
+                        ]
+                    ),
 
                     wvc.Property(
                         name="variants",
@@ -79,6 +99,7 @@ def weaviateImportText(dict_list, model):
                             wvc.Property(name="hom_carriers", data_type=wvc.DataType.TEXT),
                             wvc.Property(name="affected_carriers", data_type=wvc.DataType.TEXT),
                             wvc.Property(name="unaffected_carriers", data_type=wvc.DataType.TEXT),
+                            wvc.Property(name="number_of_meioses", data_type=wvc.DataType.TEXT)
                         ]
                     )
                 ]
@@ -106,10 +127,25 @@ def weaviateImportText(dict_list, model):
 
                 if len(response.objects) > 0:
                     print(f"Skipping {var_dict['path']} - already exists in DB.")
-                    upload_counter = upload_counter + 1
                     continue
 
-                vector = model.encode(var_dict["chunk"])['dense_vecs']
+                encoded = model.encode(var_dict["chunk"], return_dense=True, return_sparse=True)
+
+                dense = encoded['dense_vecs'].astype("float32").tolist()
+
+                sparse_dict = encoded['lexical_weights']
+                sparse = []
+                for key, value in sparse_dict.items():
+                    sparse_weight = {}
+                    sparse_weight["token"] = key
+                    sparse_weight["weight"] = float(value)
+                    sparse.append(sparse_weight)
+
+
+                with open("chunk_sizes.txt", "a") as f:
+                    f.write(f"Chunk No.: {var_dict['chunk_idx']}\n"
+                            f"Dense vector length: {len(dense)}\n"
+                            f"Sparse vector length: {len(sparse)}\n")
 
                 properties = {
                     "title": var_dict["title"],
@@ -123,6 +159,7 @@ def weaviateImportText(dict_list, model):
                     "description": var_dict["description"],
                     "genes_mentioned": var_dict["genes_mentioned"],
                     "variant_count": int(var_dict["variant_count"]),
+                    "sparse_weights": sparse,
                     "variants": [
                         {
                             "gene": variant["gene"],
@@ -138,21 +175,26 @@ def weaviateImportText(dict_list, model):
                             "hom_carriers": variant["hom_carriers"],
                             "affected_carriers": variant["affected_carriers"],
                             "unaffected_carriers": variant["unaffected_carriers"],
+                            "number_of_meioses": variant["number_of_meioses"]
                         } for variant in var_dict.get("variants", [])
                     ]
                 }
 
                 batch.add_object(
                     properties=properties,
-                    vector=vector,
+                    vector={
+                        "dense": dense
+                    }
                 )
 
                 upload_counter = upload_counter + 1
 
+            print(f"---{upload_counter} chunks uploaded.")
+
             if collection.batch.failed_objects:
-                print(f"Failed to import {len(collection.batch.failed_objects)} objects.")
+                print(f"---Failed to import {len(collection.batch.failed_objects)} objects.")
                 for obj in collection.batch.failed_objects:
-                    print(f"Failed to import {obj['path']}")
+                    print(f"---Error: {obj.message}")
 
 
 def weaviateImportImage(dict_list, model):
@@ -178,20 +220,39 @@ def weaviateImportImage(dict_list, model):
         if not client.collections.exists("FH_PDFs"):
             client.collections.create(
                 name="FH_PDFs",
-                vector_config=wvc.Configure.Vectors.self_provided(
-                    vector_index_config=wvc.Configure.VectorIndex.hnsw(
-                        distance_metric=wvc.VectorDistances.COSINE  # ColBERT uses Dot Product for MaxSim
-                    ),
-                ),
+                vector_config=[
+                    wvc.Configure.Vectors.self_provided(
+                        name="dense",
+                        vector_index_config=wvc.Configure.VectorIndex.hnsw(
+                            distance_metric=wvc.VectorDistances.COSINE  # ColBERT uses Dot Product for MaxSim
+                        ),
+                    )
+                ],
                 # This is the key part for Late Interaction models
                 properties=[
                     wvc.Property(name="title", data_type=wvc.DataType.TEXT),
                     wvc.Property(name="authors", data_type=wvc.DataType.TEXT_ARRAY),
-                    wvc.Property(name="path", data_type=wvc.DataType.TEXT),
+                    wvc.Property(
+                        name="path",
+                        data_type=wvc.DataType.TEXT
+                    ),
 
-                    wvc.Property(name="section_header", data_type=wvc.DataType.TEXT),
-                    wvc.Property(name="subsection_header", data_type=wvc.DataType.TEXT),
-                    wvc.Property(name="sub_subsection_header", data_type=wvc.DataType.TEXT),
+                    wvc.Property(
+                        name="section_header",
+                        data_type=wvc.DataType.TEXT,
+                        tokenization=wvc.config.Tokenization.FIELD
+                    ),
+                    wvc.Property(
+                        name="subsection_header",
+                        data_type=wvc.DataType.TEXT,
+                        tokenization=wvc.config.Tokenization.FIELD
+                    ),
+                    wvc.Property(
+                        name="sub_subsection_header",
+                        data_type=wvc.DataType.TEXT,
+                        tokenization=wvc.config.Tokenization.FIELD
+                    ),
+
                     wvc.Property(name="chunk_idx", data_type=wvc.DataType.INT),
 
                     wvc.Property(name="chunk", data_type=wvc.DataType.TEXT),
@@ -199,6 +260,15 @@ def weaviateImportImage(dict_list, model):
 
                     wvc.Property(name="genes_mentioned", data_type=wvc.DataType.TEXT_ARRAY),
                     wvc.Property(name="variant_count", data_type=wvc.DataType.INT),
+
+                    wvc.Property(
+                        name="sparse_weights",
+                        data_type=wvc.DataType.OBJECT_ARRAY,
+                        nested_properties=[
+                            wvc.Property(name="token", data_type=wvc.DataType.TEXT),
+                            wvc.Property(name="weight", data_type=wvc.DataType.NUMBER),
+                        ]
+                    ),
 
                     wvc.Property(
                         name="variants",
@@ -217,6 +287,7 @@ def weaviateImportImage(dict_list, model):
                             wvc.Property(name="hom_carriers", data_type=wvc.DataType.TEXT),
                             wvc.Property(name="affected_carriers", data_type=wvc.DataType.TEXT),
                             wvc.Property(name="unaffected_carriers", data_type=wvc.DataType.TEXT),
+                            wvc.Property(name="number_of_meioses", data_type=wvc.DataType.TEXT)
                         ]
                     )
                 ]
@@ -244,10 +315,24 @@ def weaviateImportImage(dict_list, model):
 
                 if len(response.objects) > 0:
                     print(f"Skipping {var_dict['path']} - already exists in DB.")
-                    upload_counter = upload_counter + 1
                     continue
 
-                vector = model.encode(var_dict["chunk"])['dense_vecs']
+                encoded = model.encode(var_dict["chunk"], return_dense=True, return_sparse=True)
+
+                dense = encoded['dense_vecs'].astype("float32").tolist()
+
+                sparse_dict = encoded['lexical_weights']
+                sparse = []
+                for key, value in sparse_dict.items():
+                    sparse_weight = {}
+                    sparse_weight["token"] = key
+                    sparse_weight["weight"] = float(value)
+                    sparse.append(sparse_weight)
+
+                with open("chunk_sizes.txt", "a") as f:
+                    f.write(f"Chunk No.: {var_dict['chunk_idx']}\n"
+                            f"Dense vector length: {len(dense)}\n"
+                            f"Sparse vector length: {len(sparse)}\n")
 
                 properties = {
                     "title": var_dict["title"],
@@ -261,6 +346,7 @@ def weaviateImportImage(dict_list, model):
                     "description": f"Caption: {var_dict['caption']} \nDescription: {var_dict['description']} \nTable: {var_dict['table']}",
                     "genes_mentioned": var_dict["genes_mentioned"],
                     "variant_count": int(var_dict["variant_count"]),
+                    "sparse_weights": sparse,
                     "variants": [
                         {
                             "gene": variant["gene"],
@@ -276,18 +362,23 @@ def weaviateImportImage(dict_list, model):
                             "hom_carriers": variant["hom_carriers"],
                             "affected_carriers": variant["affected_carriers"],
                             "unaffected_carriers": variant["unaffected_carriers"],
+                            "number_of_meioses": variant["number_of_meioses"]
                         } for variant in var_dict.get("variants", [])
                     ]
                 }
 
                 batch.add_object(
                     properties=properties,
-                    vector=vector,
+                    vector={
+                        "dense": dense
+                    }
                 )
 
                 upload_counter = upload_counter + 1
 
+            print(f"---{upload_counter} chunks uploaded.")
+
             if collection.batch.failed_objects:
-                print(f"Failed to import {len(collection.batch.failed_objects)} objects.")
+                print(f"---Failed to import {len(collection.batch.failed_objects)} objects.")
                 for obj in collection.batch.failed_objects:
-                    print(f"Failed to import {obj['path']}")
+                    print(f"---Error: {obj.message}")

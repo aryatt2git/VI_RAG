@@ -3,7 +3,7 @@ transformers==4.57.6
 pandas==3.0.0
 requests==2.32.5
 tqdm==4.67.1
-weaviate-client==4.19.2
+weaviate-client==4.20.4
 ollama==0.6.1
 
 # for gnomAD

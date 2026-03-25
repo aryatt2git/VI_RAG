@@ -1,4 +1,4 @@
-from ollama import generate, chat
+from ollama import chat
 
 def vlm_loadContext(markdown_path):
 
@@ -19,6 +19,7 @@ def vlm_loadContext(markdown_path):
     ]
 
     response = chat(
+        #model = "qwen2.5:7b",
         model = "qwen3.5:397b-cloud",
         messages = messages,
         options = {"num_ctx": 32768},
@@ -46,11 +47,14 @@ def vlm_loadContext(markdown_path):
 
 def vlm_TextExtraction(context, markdown_path):
 
+    #with open(markdown_path, "r", encoding='utf-8') as f:
+        #context = f.read()
+
     VLM_query = (
         'Process the markdown file in accordance with the instructions below. Return each subsection of every '
         'section/subsection/subsection of a subsection from the markdown file in accordance with the following JSON '
         'format:'
-        '{"title": "", "authors": [], "section_header": "", "subsection_header": "", "sub_subsection_header": "", "text": "", "genes_mentioned": [], variant_count": "", "variants": [{"gene": "", "genomic_variant": "", "transcript_variant": "", "exon": "", "protein_variant": "", "protein_domain": "", "clinical_information": "", "clinical_significance": "", "frequency": "", "het_carriers": "", "hom_carriers": "", "affected_carriers": "", "unaffected_carriers": ""}]}'
+        '{"title": "", "authors": [], "section_header": "", "subsection_header": "", "sub_subsection_header": "", "text": "", "genes_mentioned": [], variant_count": "", "variants": [{"gene": "", "genomic_variant": "", "transcript_variant": "", "exon": "", "protein_variant": "", "protein_domain": "", "clinical_information": "", "clinical_significance": "", "frequency": "", "het_carriers": "", "hom_carriers": "", "affected_carriers": "", "unaffected_carriers": "", "number_of_meioses": ""}]}'
     )
 
     prompt = f"""
@@ -111,6 +115,8 @@ def vlm_TextExtraction(context, markdown_path):
     - To the 'hom_carriers' key, assign the number of affected carriers with the corresponding variant in a homozygous genotype counted in the corresponding text.
     - To the 'affected_carriers' key, assign the total number of affected carriers with the corresponding variant counted in the corresponding text.
     - To the 'unaffected_carriers' key, assign the total number of unaffected carriers with the corresponding variant counted in the corresponding text.
+    - One meiosis is the inheritance of a variant from one affected individual to their affected child.
+    - To the 'number_of_meioses' key, assign the total number of meioses of the corresponding variant counted in the corresponding text.
     """
     messages = [
         {
@@ -127,7 +133,8 @@ def vlm_TextExtraction(context, markdown_path):
     ]
 
     response = chat(
-        model = 'qwen3.5:397b-cloud',
+        #model="qwen2.5:7b",
+        model = "qwen3.5:397b-cloud",
         messages = messages,
         format="json",
         options={
@@ -158,6 +165,9 @@ def vlm_TextExtraction(context, markdown_path):
 
 
 def vlm_TextDescription(input_text, context, markdown_path):
+
+    #with open(markdown_path, "r", encoding='utf-8') as f:
+        #context = f.read()
 
     VLM_query = (
         'Understand, analyse and interpret the following text using the the markdown file that I sent to you earlier '
@@ -203,7 +213,8 @@ def vlm_TextDescription(input_text, context, markdown_path):
     ]
 
     response = chat(
-        model='qwen3.5:397b-cloud',
+        #model="qwen2.5:7b",
+        model = "qwen3.5:397b-cloud",
         messages = messages,
         format="json",
         options={
@@ -236,6 +247,9 @@ def vlm_TextDescription(input_text, context, markdown_path):
 
 def vlm_ImageDescription(image_path, context):
 
+    #with open(markdown_path, "r", encoding='utf-8') as f:
+        #context = f.read()
+
     VLM_query = (
         'You are the best text parser and genomic clinical scientist ever because of your ability to understand the '
         'content and structure of research papers/articles/literature stored in markdown format. Include only text from '
@@ -243,7 +257,7 @@ def vlm_ImageDescription(image_path, context):
         'Process the image using the markdown file as context in accordance with the instructions below. Analyse the '
         'image as comprehensively as possible. Do not omit any clinically relevant information. '
         'Structure your output into the following JSON format:'
-        '{"title": "", "authors": [], "type": "", "figure_table_no": "", "sub_figure_table_no": "", "caption": "", "description": "", "table": "", "genes_mentioned": [], "variant_count": "", "variants": [{"gene": "", "genomic_variant": "", "transcript_variant": "", "exon": "", "protein_variant": "", "protein_domain": "", "clinical_information": "", "clinical_significance": "", "evidence": "", "frequency": "", "het_carriers": "", "hom_carriers": "", "affected_carriers": "", "unaffected_carriers": ""}]}'
+        '{"title": "", "authors": [], "type": "", "figure_table_no": "", "sub_figure_table_no": "", "caption": "", "description": "", "table": "", "genes_mentioned": [], "variant_count": "", "variants": [{"gene": "", "genomic_variant": "", "transcript_variant": "", "exon": "", "protein_variant": "", "protein_domain": "", "clinical_information": "", "clinical_significance": "", "evidence": "", "frequency": "", "het_carriers": "", "hom_carriers": "", "affected_carriers": "", "unaffected_carriers": "", "number_of_meioses": ""}]}'
     )
 
     prompt = f"""
@@ -293,6 +307,8 @@ def vlm_ImageDescription(image_path, context):
     - To the 'hom_carriers' key, assign the number of affected carriers with the corresponding variant in a homozygous genotype counted in the image or the caption/legend matched with the image from the markdown file provided as context.
     - To the 'affected_carriers' key, assign the total number of affected carriers with the corresponding variant counted in the image or the caption/legend matched with the image from the markdown file provided as context.
     - To the 'unaffected_carriers' key, assign the total number of unaffected carriers with the corresponding variant counted in the image or the caption/legend matched with the image from the markdown file provided as context.
+    - One meiosis is the inheritance of a variant from one affected individual to their affected child.
+    - To the 'number_of_meioses' key, assign the total number of meioses of the corresponding variant counted in the image or the caption/legend matched with the image from the markdown file provided as context.
     """
 
     messages = [
@@ -311,7 +327,8 @@ def vlm_ImageDescription(image_path, context):
     ]
 
     response = chat(
-        model="qwen3.5:397b-cloud",
+        #model="qwen2.5:7b",
+        model = "qwen3.5:397b-cloud",
         messages = messages,
         format="json",
         options={
@@ -322,6 +339,45 @@ def vlm_ImageDescription(image_path, context):
             'num_ctx': 32768,  # Add this to handle the image + markdown
         },
         keep_alive="20m"  # This forces a fresh start for the next run
+    )
+
+    print("--- VLM RESPONSE ---")
+
+    print(response["message"]["content"])
+
+    with open("ollama_token_costs.txt", 'a') as f:
+        f.write(f"vlm_ImageDescription: {image_path}\n"
+                f"Query costed: {response['prompt_eval_count']} tokens\n"
+                f"Response costed: {response['eval_count']} tokens\n"
+                f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n")
+
+    print(f"Query costed: {response['prompt_eval_count']} tokens")
+    print(f"Response costed: {response['eval_count']} tokens")
+    print(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
+
+    return response["message"]["content"]
+
+def imageChecker(image_path):
+
+    messages = [
+        {
+            "role": "system",
+            "content": "You are an medical image analyser with the ability to recognise and understand clinical "
+                       "and statistical information. Do not hallucinate. Do not speculate."
+        },
+        {
+            "role": "user",
+            "content": "If you recognise any clinical, genomic or statistical information in the image, return only "
+                       "'True'. If you do not recognise any clinical or statistical information in the image, return "
+                       "only 'False'. Do not return any other response.",
+            "images": [image_path]
+        }
+    ]
+
+    response = chat(
+        # model="qwen2.5:7b",
+        model="qwen3.5:397b-cloud",
+        messages=messages
     )
 
     print("--- VLM RESPONSE ---")

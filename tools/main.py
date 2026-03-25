@@ -12,27 +12,19 @@ from FlagEmbedding import BGEM3FlagModel
 
 #pdf_path = '/Users/arjun/PycharmProjects/VI_RAG/VI_RAG/tools/Hori et al 2019 PMID 31491741.pdf'
 
-model = BGEM3FlagModel('BAAI/bge-m3', use_fp16=True)
+print("---Loading model")
+model = BGEM3FlagModel('BAAI/bge-m3') #, use_fp16=True
 splitter = chunkText()
 
-References = '/Users/arjun/PycharmProjects/VI_RAG/VI_RAG/VLM_RAG/References/'
+References = '/Users/arjun/PycharmProjects/VI_RAG/VI_RAG/tools/References/'
 
 for root, dir, files in os.walk(References, topdown=False):
     for file in files:
         if file.endswith('.pdf'):
 
-            print(f"------Importing {file}------")
-
-            if os.path.exists("./images/"):
-                shutil.rmtree("./images/")
-
-            for md_file in os.listdir("./"):
-                if file.endswith('.md'):
-                    os.remove("./" + md_file)
-
             pdf_path = os.path.join(os.path.abspath(root), file)
 
-            pdf_list=[]
+            pdf_list = []
             if os.path.exists("pdf_paths.txt"):
                 with open("pdf_paths.txt", "r") as f:
                     lines = f.readlines()
@@ -40,22 +32,36 @@ for root, dir, files in os.walk(References, topdown=False):
                         pdf_list.append(line.strip())
 
             if pdf_path in pdf_list:
+                print(f"---Skipping entire import of: {pdf_path}")
                 continue
+
+            if os.path.exists("./images/"):
+                print(f"---Deleting images directory...")
+                shutil.rmtree("./images/")
+
+            for md_file in os.listdir("./"):
+                if md_file.endswith('.md'):
+                    print(f"---Deleting markdown file: {md_file}")
+                    os.remove(os.path.join("./" , md_file))
 
             base_name = os.path.splitext(os.path.basename(pdf_path))[0]
             markdown_name = f'{base_name.strip().replace(" ", "_")}.md'
 
             markdown_list=[]
-            if os.path.exists("pdf_paths.txt"):
+            if os.path.exists("markdown_files.txt"):
                 with open("markdown_files.txt", "r") as f:
                     lines = f.readlines()
                     for line in lines:
                         markdown_list.append(line.strip())
 
             if markdown_name in markdown_list:
+                print(f"---Skipping text import of: {markdown_name}")
                 pass
 
             else:
+
+                print(f"---Importing {file}")
+
                 markdown_path = docling_PDF2Text(pdf_path)
                 #print(markdown_path)
 
@@ -171,11 +177,18 @@ for root, dir, files in os.walk(References, topdown=False):
 
                         print(json.dumps(weaviate_dict, indent=4))
 
+                        with open("chunk_sizes.txt", "a") as f:
+                            f.write(f"Text: {markdown_name}\n"
+                                    f"Chunk No.: {i+1}\n"
+                                    f"Chunk length: {len(chunk)}\n"
+                                    f"Dict length: {len(str(weaviate_dict))}\n")
+
                         chunk_dicts.append(weaviate_dict)
 
-                print(f"-----Loading {markdown_name} into weaviate database-----")
+                print(f"---Loading {markdown_name} into weaviate database.\n"
+                      f"--- {chunk_dicts} chunks awaiting upload.")
                 weaviateImportText(dict_list=chunk_dicts, model=model)
-                print(f"-----{markdown_name} successfully loaded into weaviate database-----")
+                print(f"---{markdown_name} successfully loaded into weaviate database")
 
                 with open("markdown_files.txt", "a") as f:
                     f.write(f"{markdown_name}\n")
@@ -193,15 +206,23 @@ for root, dir, files in os.walk(References, topdown=False):
                             images_list.append(line.strip())
 
                     if image in images_list:
-                        print(f"Skipping {image}")
+                        print(f"Skipping image import of: {image}")
                         continue
 
-                print(image)
-
                 if image.endswith('.png'):
+
                     filename = image.split('-')[0]
 
                     markdown = os.path.join(images, '..', f'{filename}.md')
+
+                    check_resp = imageChecker(os.path.join(images, image))
+                    if check_resp == "False":
+                        print(f"---Skipping image: {image}")
+                        with open("image_files.txt", "a") as f:
+                            f.write(f"{image}\n")
+                        continue
+
+                    print(f"---Loading: {image}")
 
                     if os.path.exists(markdown):
                         markdown_path = os.path.abspath(os.path.join(images, '..', f'{filename}.md'))
@@ -214,7 +235,7 @@ for root, dir, files in os.walk(References, topdown=False):
                     image_path = os.path.abspath(os.path.join(images, image))
                     print(f"Processing: {image_path}")
 
-                    variant_count = 0
+                    variant_count = -1
                     image_dict = None
                     for attempt in range(5):
                         response = vlm_ImageDescription(image_path=image_path, context=context)
@@ -227,8 +248,11 @@ for root, dir, files in os.walk(References, topdown=False):
                         if not resp_dict:
                             continue
 
-                        if not resp_dict["variant_count"] or resp_dict["variant_count"].lower() == "null":
+                        if resp_dict["variant_count"] is None:
                             resp_dict["variant_count"] = 0
+                        elif resp_dict["variant_count"] == "null":
+                            resp_dict["variant_count"] = 0
+
                         print(f"count = {resp_dict['variant_count']}")
                         count = int(resp_dict["variant_count"])
 
@@ -338,22 +362,26 @@ for root, dir, files in os.walk(References, topdown=False):
 
                         print(json.dumps(weaviate_dict, indent=4))
 
+                        with open("chunk_sizes.txt", "a") as f:
+                            f.write(f"Image: {image}\n"
+                                    f"Chunk No.: {i+9001}\n"
+                                    f"Chunk length: {len(chunk)}\n"
+                                    f"Dict length: {len(str(weaviate_dict))}\n")
+
                         chunk_dicts.append(weaviate_dict)
 
-                    print(f"-----Loading {image} into weaviate database-----")
+                    print(f"---Loading {image} into weaviate database.\n"
+                          f"--- {chunk_dicts} chunks awaiting upload.")
                     weaviateImportImage(dict_list=chunk_dicts, model=model)
-                    print(f"-----{image} successfully loaded into weaviate database-----")
+                    print(f"---{image} successfully loaded into weaviate database")
 
                     with open("image_files.txt", "a") as f:
                         f.write(f"{image}\n")
 
-                    if os.path.exists(images):
-                        shutil.rmtree(images)
+            if os.path.exists(images):
+                shutil.rmtree(images)
 
-                    if os.path.exists(markdown_path):
-                        os.remove(markdown_path)
-
-            with open("pdf_path.txt", "a") as f:
+            with open("pdf_paths.txt", "a") as f:
                 f.write(f"{pdf_path}\n")
 
 
