@@ -12,6 +12,7 @@ tools/References
 tools/vector_DB
 qwen2_5-7b/
 tools/weaviate_test.py
+tools/Qdrant_FH_DB/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

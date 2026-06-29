@@ -1,79 +1,83 @@
 from FlagEmbedding import BGEM3FlagModel
-import weaviate
-import weaviate.classes.config as wvc
-from weaviate.classes.query import Filter, HybridFusion, MetadataQuery
-from weaviate.classes.init import Timeout
+from qdrant_functions import qdrantHybridSearch
 from ollama import chat
 import time
 
 
 model = BGEM3FlagModel('BAAI/bge-m3') #, use_fp16=True
 
-def create_context(weaviate_objects, gene, v_query):
+def create_context(qdrant_response, gene, v_query):
 
     context = []
 
-    for i, obj in enumerate(weaviate_objects):
-        p = obj.properties
+    for i, point in enumerate(qdrant_response.points):
+
+        payload = point.payload
+
         obj_content = []
 
-        if p["title"] != "null":
-            obj_content.append(f"Title: {p['title']}\n")
+        if payload["title"] != "null":
+            obj_content.append(f"Title: {payload['title']}\n")
 
-        if p["authors"] != "null":
-            obj_content.append(f"Authors: {p['authors']}\n")
+        if payload["authors"] != "null":
+            obj_content.append(f"Authors: {payload['authors']}\n")
 
-        if p["section_header"] == "table":
+        if "type" in payload:
 
-            if p["subsection_header"] != "null":
-                table_no = p['subsection_header']
-            else:
-                table_no = "number not provided."
+            if payload["type"] == "table":
 
-            if p["sub_subsection_header"] != "null":
-                table_section = p['sub_subsection_header']
-            else:
-                table_section = ""
+                if payload["figure_table_no"] != "null":
+                    table_no = payload["figure_table_no"]
+                else:
+                    table_no = "number not provided."
 
-            obj_content.append(f"Table: Table {table_no}{table_section}")
+                if payload["sub_figure_table_no"] != "null":
+                    table_section = payload['sub_figure_table_no']
+                else:
+                    table_section = ""
 
-            obj_content.append(p['description'])
+                obj_content.append(f"Table: Table {table_no}{table_section}\n")
 
-        elif p["section_header"] == "figure":
+                description = f"Caption: {payload['caption']}\n\nDescription: {payload['description']}\n\nTable: {payload['table']}\n"
 
-            if p["subsection_header"] != "null":
-                fig_no = p['subsection_header']
-            else:
-                fig_no = "number not provided."
+                obj_content.append(description)
 
-            if p["sub_subsection_header"] != "null":
-                figure_section = p['sub_subsection_header']
-            else:
-                figure_section = ""
+            elif payload["type"] == "figure":
 
-            obj_content.append(f"Figure: Figure {fig_no}{figure_section}")
+                if payload["figure_table_no"] != "null":
+                    fig_no = payload['figure_table_no']
+                else:
+                    fig_no = "number not provided."
 
-            obj_content.append(p['description'])
+                if payload["sub_figure_table_no"] != "null":
+                    figure_section = payload['sub_figure_table_no']
+                else:
+                    figure_section = ""
+
+                obj_content.append(f"Figure: Figure {fig_no}{figure_section}\n")
+
+                description = f"Caption: {payload['caption']}\n\nDescription: {payload['description']}\n"
+
+                obj_content.append(description)
 
         else:
 
-            if p["section_header"] != "null":
-                obj_content.append(f"Section: {p['section_header']}")
+            if payload["section_header"] != "null":
+                obj_content.append(f"Section: {payload['section_header']}\n")
 
-            if p["subsection_header"] != "null":
-                obj_content.append(f"Subsection: {p['subsection_header']}")
+            if payload["subsection_header"] != "null":
+                obj_content.append(f"Subsection: {payload['subsection_header']}\n")
 
-            if p["sub_subsection_header"] != "null":
-                obj_content.append(f"Paragraph: {p['sub_subsection_header']}")
+            if payload["sub_subsection_header"] != "null":
+                obj_content.append(f"Paragraph: {payload['sub_subsection_header']}\n")
 
-            obj_content.append(f"chunk ID: {p['chunk_idx']}")
-            obj_content.append(f"Content: {p['chunk']}")
-            obj_content.append(f"Context: {p['description']}")
+            obj_content.append(f"chunk ID: {payload['chunk_idx']}\n")
+            obj_content.append(f"Content: {payload['chunk']}\n")
+            obj_content.append(f"Description: {payload['description']}\n")
 
-
-
-        if p.get("variants"):
-            for variant in p.get("variants"):
+        """
+        if payload.get("variants"):
+            for variant in payload.get("variants"):
                 if gene == variant.get("gene") and v_query in [variant.get("genomic_variant"),
                                                                variant.get("transcript_variant"),
                                                                variant.get("protein_variant")
@@ -104,147 +108,30 @@ def create_context(weaviate_objects, gene, v_query):
                             variant_info.append(f"Number of meioses counted in this paper: {value}")
 
                     obj_content.append(f"Variant information:\n\t" + "\n\t".join(variant_info) + "\n")
-
-        context.append("\n---------------\n\n".join(obj_content))
-
-    return context
-
-def hybrid_search(variant, model, gene, initial_fetch, final_fetch):
-
-    print("---Encoding variants and gene terms")
-
-    encoded = model.encode(variant, return_dense=True, return_sparse=True)
-
-    variant_dense = encoded['dense_vecs'].astype("float32").tolist()
-
-    print(f"---Dense vectors: {variant_dense[:5]}")
-
-    variant_sparse_dict = encoded['lexical_weights']
-
-    print(f"---Sparse vectors: {variant_sparse_dict}")
-    print(f"---Connecting to weaviate database...")
-
-    with weaviate.connect_to_custom(
-            http_host="localhost",
-            http_port=5050,
-            http_secure=False,
-            grpc_host="localhost",
-            grpc_port=50051,
-            grpc_secure=False,
-            additional_config=weaviate.config.AdditionalConfig(
-                timeout=Timeout(init=120, query=60, insert=120)
-            )
-    ) as client:
-
-        collection = client.collections.get("FH_PDFs")
-
-        print(f"---Connected to weaviate database")
-
-
-        total = collection.aggregate.over_all(total_count=True)
-        print(f"\n---Total objects in DB: {total.total_count}")
-
-        #filters = Filter.by_property("genes_mentioned").contains_any([gene])
-
-        weaviate_response = collection.query.hybrid(
-            query=variant,
-            vector=variant_dense,
-            #target_vector="dense",
-            #filters=filters,
-            alpha=0.5,
-            limit=initial_fetch,
-            fusion_type=HybridFusion.RELATIVE_SCORE,
-            return_metadata=MetadataQuery(score=True),
-            return_properties=[
-                "title",
-                "authors",
-                "path",
-                "section_header",
-                "subsection_header",
-                "sub_subsection_header",
-                "chunk_idx",
-                "chunk",
-                "description",
-                "genes_mentioned",
-                "variant_count",
-                #"variants",
-                #"sparse_weights"
-            ]
-        )
         """
-        uuids = []
-        for obj in weaviate_response.objects:
-            uuids.append(obj.uuid)
+        context.append("\n".join(obj_content))
 
-        sparse_weight_variants = {}
-        for uuid in uuids:
-            sparse_response = collection.query.fetch_object_by_id(
-                uuid=uuid,
-                return_properties= ["sparse_weights", "variants"]
-            )
+    response = "\n\n---------------------------------------\n\n".join(context)
 
-            if sparse_response and sparse_response.properties.get("sparse_weights"):
-                sparse_weight_variants[str(uuid)] = {
-                    "sparse_weights": sparse_response.properties["sparse_weights"],
-                    "variants": sparse_response.properties.get("variants") or []
-                }
+    return response
 
-            else:
-                sparse_weight_variants[str(uuid)] = {
-                    "sparse_weights": [],
-                    "variants": []
-                }
+def vlm_query(variant, model, gene):
 
-        scored = []
-        for obj in weaviate_response.objects:
+    time_one = time.time()
 
-            sparse_weights = sparse_weight_variants[str(obj.uuid)]["sparse_weights"]
+    qdrant_response = qdrantHybridSearch(query=variant, model=model)
 
-            obj.properties["variants"] = sparse_weight_variants[str(obj.uuid)]["variants"]
-
-            chunk_sparse_dict = {}
-            for sparse_weight in sparse_weights:
-                chunk_sparse_dict[sparse_weight["token"]] = float(sparse_weight["weight"])
-
-            score = 0.0
-            for query_token, query_weight in variant_sparse_dict.items():
-                query_str = str(query_token)
-                if query_str in chunk_sparse_dict:
-                    score += float(query_weight) * chunk_sparse_dict[query_str]
-
-            scored.append((score, obj))
-
-        scored.sort(key=lambda x: x[0], reverse=True)
-
-        results = []
-        for score, obj in scored[:final_fetch]:
-            results.append(obj)
-        
-        return results
-        """
-        results = []
-        for obj in weaviate_response.objects:
-            results.append(obj)
-
-        return results
-
-def vlm_query(variant, model, gene, initial_fetch, final_fetch):
-
-    weaviate_response = hybrid_search(variant, model, gene, initial_fetch, final_fetch)
-
-    if not weaviate_response:
+    if not qdrant_response:
         return {
             "answer": "Information regarding this variant could not be found.",
             "sources": [],
             "context": ""
         }
 
-    print(f"---Found {len(weaviate_response)} chunks!")
+    print(f"---Found {len(qdrant_response.points)} chunks!")
 
-    time_one = time.time()
-
-    context_list = create_context(weaviate_response, gene=gene, v_query=variant)
-    context = "\n\n".join(context_list)
+    context = create_context(qdrant_response, gene=gene, v_query=variant)
+    #context = "\n\n".join(context_list)
 
     prompt=f"""
     Using the following source documents, please answer the following question:
@@ -291,7 +178,7 @@ def vlm_query(variant, model, gene, initial_fetch, final_fetch):
 
     with open("ollama_query_costs.txt", 'a') as f:
         f.write(
-            f"{len(weaviate_response)} chunks fed to VLM\n"
+            f"{len(qdrant_response.points)} chunks fed to VLM\n"
             f"vlm_query_variant: {variant}\n"
             f"Query costed: {response['prompt_eval_count']} tokens\n"
             f"Response costed: {response['eval_count']} tokens\n"
@@ -305,5 +192,4 @@ def vlm_query(variant, model, gene, initial_fetch, final_fetch):
 
     return response["message"]["content"]
 
-answer = vlm_query(variant="diagnosis", model=model, gene="hypercholesterolaemia", initial_fetch=10, final_fetch=5)
-print(answer)
+vlm_query(variant="diagnosis", model=model, gene="hypercholesterolaemia")

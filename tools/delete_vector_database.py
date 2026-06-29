@@ -1,10 +1,13 @@
+"""
+Functions used to delete Weaviate and Qdrant vector databases.
+"""
+
 import weaviate
-import weaviate.classes.config as wvc
-from weaviate.classes.query import Filter
 from weaviate.classes.init import Timeout
+from qdrant_client import QdrantClient
 
 
-def weaviateImportText(dict_list, model):
+def weaviateDeleteDB(dict_list, model):
 
     # Connect to your Weaviate instance
     with weaviate.connect_to_custom(
@@ -22,3 +25,15 @@ def weaviateImportText(dict_list, model):
         # Delete the existing collection (required to change vector type)
         if client.collections.exists("FH_PDFs"):
             client.collections.delete("FH_PDFs")
+
+
+def qdrantDeleteDB(DB_name):
+
+    client = QdrantClient(url="http://localhost:6333")
+
+    if client.collection_exists(collection_name=DB_name):
+        print(f"---{DB_name} collection exists")
+        client.delete_collection(collection_name=DB_name)
+        print(f"---{DB_name} collection deleted")
+
+qdrantDeleteDB("FH_PDFs")

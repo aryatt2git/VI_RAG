@@ -3,11 +3,11 @@ import shutil
 import json
 import time
 import copy
-
 from docling_functions import *
 from chunk_text import chunkText
 from vlm_functions import *
-from weaviate_functions import *
+from qdrant_functions import qdrantImport
+from qdrant_client import QdrantClient
 from FlagEmbedding import BGEM3FlagModel
 
 #pdf_path = '/Users/arjun/PycharmProjects/VI_RAG/VI_RAG/tools/Hori et al 2019 PMID 31491741.pdf'
@@ -67,7 +67,6 @@ for root, dir, files in os.walk(References, topdown=False):
 
                 context = vlm_loadContext(markdown_path=markdown_path)
 
-                chunk_dicts = []
                 ext_json_list = None
 
                 for attempt in range(10):
@@ -108,20 +107,20 @@ for root, dir, files in os.walk(References, topdown=False):
 
                     for i, chunk in enumerate(chunks):
 
-                        weaviate_dict = {}
+                        qdrant_dict = {}
 
                         for key, value in resp_dict.items():
 
                             if key != 'text':
-                                weaviate_dict[key] = copy.deepcopy(value)
+                                qdrant_dict[key] = copy.deepcopy(value)
 
-                        if weaviate_dict["variant_count"] == "null":
-                            weaviate_dict["variant_count"] = 0
+                        if qdrant_dict["variant_count"] == "null":
+                            qdrant_dict["variant_count"] = 0
 
-                        weaviate_dict["path"] = markdown_path
+                        qdrant_dict["path"] = markdown_path
 
-                        weaviate_dict["chunk_idx"] = i + 1
-                        weaviate_dict["chunk"] = chunk
+                        qdrant_dict["chunk_idx"] = i + 1
+                        qdrant_dict["chunk"] = chunk
 
                         description_json = None
                         for attempt in range(5):
@@ -136,21 +135,21 @@ for root, dir, files in os.walk(References, topdown=False):
                                 continue
 
                         if description_json is None or "description" not in description_json:
-                            weaviate_dict["description"] = "null"
+                            qdrant_dict["description"] = "null"
                         else:
-                            weaviate_dict["description"] = description_json["description"]
+                            qdrant_dict["description"] = description_json["description"]
 
                         chunk_genes = []
-                        if len(weaviate_dict['genes_mentioned']) > 0:
-                            for gene in weaviate_dict['genes_mentioned']:
+                        if len(qdrant_dict['genes_mentioned']) > 0:
+                            for gene in qdrant_dict['genes_mentioned']:
                                 if gene in chunk:
                                     chunk_genes.append(gene)
 
-                        weaviate_dict['genes_mentioned'] = chunk_genes
+                        qdrant_dict['genes_mentioned'] = chunk_genes
 
                         chunk_variants = []
-                        if len(weaviate_dict['variants']) > 0:
-                            for variant in weaviate_dict['variants']:
+                        if len(qdrant_dict['variants']) > 0:
+                            for variant in qdrant_dict['variants']:
                                 nom_list = []
                                 c_variant = variant["transcript_variant"]
                                 g_variant = variant["genomic_variant"]
@@ -171,24 +170,23 @@ for root, dir, files in os.walk(References, topdown=False):
                                 else:
                                     continue
 
-                        weaviate_dict['variants'] = chunk_variants
+                        qdrant_dict['variants'] = chunk_variants
 
-                        weaviate_dict['variant_count'] = len(weaviate_dict['variants'])
+                        qdrant_dict['variant_count'] = len(qdrant_dict['variants'])
 
-                        print(json.dumps(weaviate_dict, indent=4))
+                        print(json.dumps(qdrant_dict, indent=4))
 
                         with open("chunk_sizes.txt", "a") as f:
                             f.write(f"Text: {markdown_name}\n"
                                     f"Chunk No.: {i+1}\n"
                                     f"Chunk length: {len(chunk)}\n"
-                                    f"Dict length: {len(str(weaviate_dict))}\n")
+                                    f"Dict length: {len(str(qdrant_dict))}\n")
 
-                        chunk_dicts.append(weaviate_dict)
+                        print(f"---Loading {markdown_name} into Qdrant database.")
 
-                print(f"---Loading {markdown_name} into weaviate database.\n"
-                      f"--- {chunk_dicts} chunks awaiting upload.")
-                weaviateImportText(dict_list=chunk_dicts, model=model)
-                print(f"---{markdown_name} successfully loaded into weaviate database")
+                        qdrantImport(chunk_dict=qdrant_dict, model=model)
+
+                        print(f"---{markdown_name} successfully loaded into Qdrant database")
 
                 with open("markdown_files.txt", "a") as f:
                     f.write(f"{markdown_name}\n")
@@ -306,34 +304,32 @@ for root, dir, files in os.walk(References, topdown=False):
                             f"Description: {image_dict['description']}"
                         )
 
-                    chunk_dicts = []
-
                     for i, chunk in enumerate(chunks):
 
-                        weaviate_dict = {}
+                        qdrant_dict = {}
 
                         for key, value in image_dict.items():
 
-                            weaviate_dict[key] = copy.deepcopy(value)
+                            qdrant_dict[key] = copy.deepcopy(value)
 
-                        weaviate_dict["chunk_idx"] = i + 9001
+                        qdrant_dict["chunk_idx"] = i + 9001
 
-                        weaviate_dict["chunk"] = chunk
+                        qdrant_dict["chunk"] = chunk
 
                         chunk_genes = []
 
-                        if weaviate_dict['type'] == 'table':
+                        if qdrant_dict['type'] == 'table':
 
-                            if len(weaviate_dict['genes_mentioned']) > 0:
-                                for gene in weaviate_dict['genes_mentioned']:
+                            if len(qdrant_dict['genes_mentioned']) > 0:
+                                for gene in qdrant_dict['genes_mentioned']:
                                     if gene in chunk:
                                         chunk_genes.append(gene)
 
-                            weaviate_dict['genes_mentioned'] = chunk_genes
+                            qdrant_dict['genes_mentioned'] = chunk_genes
 
                             chunk_variants = []
-                            if len(weaviate_dict['variants']) > 0:
-                                for variant in weaviate_dict['variants']:
+                            if len(qdrant_dict['variants']) > 0:
+                                for variant in qdrant_dict['variants']:
                                     nom_list = []
                                     c_variant = variant["transcript_variant"]
                                     g_variant = variant["genomic_variant"]
@@ -354,26 +350,26 @@ for root, dir, files in os.walk(References, topdown=False):
                                     else:
                                         continue
 
-                            weaviate_dict['variants'] = chunk_variants
+                            qdrant_dict['variants'] = chunk_variants
 
-                            weaviate_dict['variant_count'] = len(weaviate_dict['variants'])
+                            qdrant_dict['variant_count'] = len(qdrant_dict['variants'])
 
-                            weaviate_dict["path"] = image_path
+                            qdrant_dict["path"] = image_path
 
-                        print(json.dumps(weaviate_dict, indent=4))
+                        print(json.dumps(qdrant_dict, indent=4))
 
                         with open("chunk_sizes.txt", "a") as f:
                             f.write(f"Image: {image}\n"
                                     f"Chunk No.: {i+9001}\n"
                                     f"Chunk length: {len(chunk)}\n"
-                                    f"Dict length: {len(str(weaviate_dict))}\n")
+                                    f"Dict length: {len(str(qdrant_dict))}\n")
 
-                        chunk_dicts.append(weaviate_dict)
+                        print(f"---Loading {image} into Qdrant database.\n")
 
-                    print(f"---Loading {image} into weaviate database.\n"
-                          f"--- {chunk_dicts} chunks awaiting upload.")
-                    weaviateImportImage(dict_list=chunk_dicts, model=model)
-                    print(f"---{image} successfully loaded into weaviate database")
+                        qdrantImport(chunk_dict=qdrant_dict, model=model)
+
+                        print(f"---{image} successfully loaded into Qdrant database")
+
 
                     with open("image_files.txt", "a") as f:
                         f.write(f"{image}\n")

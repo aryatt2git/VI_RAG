@@ -1,4 +1,5 @@
 from ollama import chat
+import os
 
 def vlm_loadContext(markdown_path):
 
@@ -54,7 +55,26 @@ def vlm_TextExtraction(context, markdown_path):
         'Process the markdown file in accordance with the instructions below. Return each subsection of every '
         'section/subsection/subsection of a subsection from the markdown file in accordance with the following JSON '
         'format:'
-        '{"title": "", "authors": [], "section_header": "", "subsection_header": "", "sub_subsection_header": "", "text": "", "genes_mentioned": [], variant_count": "", "variants": [{"gene": "", "genomic_variant": "", "transcript_variant": "", "exon": "", "protein_variant": "", "protein_domain": "", "clinical_information": "", "clinical_significance": "", "frequency": "", "het_carriers": "", "hom_carriers": "", "affected_carriers": "", "unaffected_carriers": "", "number_of_meioses": ""}]}'
+        '{"title": "", '
+        ' "authors": [], '
+        ' "section_header": "", '
+        ' "subsection_header": "", '
+        ' "sub_subsection_header": "", '
+        ' "text": "", "genes_mentioned": [], '
+        ' variant_count": "", '
+        ' "variants": ['
+        '   {"gene": "", '
+        '    "genomic_variant": "", '
+        '   "transcript_variant": "", '
+        '   "exon": "", "protein_variant": "", '
+        '   "protein_domain": "", '
+        '   "clinical_information": "", '
+        '   "clinical_significance": "", '
+        '   "frequency": "", "het_carriers": "", '
+        '   "hom_carriers": "", '
+        '   "affected_carriers": "", '
+        '   "unaffected_carriers": "", '
+        '   "number_of_meioses": ""}]}'
     )
 
     prompt = f"""
@@ -68,16 +88,10 @@ def vlm_TextExtraction(context, markdown_path):
     - Use all of the content from the markdown file I sent to you earlier for context.
     - Only use information from the markdown file for context.
     - Split the text in the markdown file into sections, subsections, and subsections of subsections, if necessary.
-    - The Abstract should be considered a whole section without any subsections or subsections of subsections
     - Remove all images/table/figure legends/captions/annotations from the markdown file content.
     - Remove all images, figures and and tables from the markdown file content.
-    - Remove all in-line references to the articles listed at the end of the markdown file.
-    - Remove all references listed after the references header. Also remove the references header.
-    - Remove the acknowledgement section and acknowledgement header.
-    - Remove the contributions section and contribution header.
-    - Remove all sections that have no clinical relevance.
+    - Remove all in-line references to other articles.
     - Match lines that end abruptly to other lines in the same section that start abruptly and check that they make sense.
-    - Before the methods section, remove all text that is not a part of the abstract and introduction sections.
     - If you see ' &gt; ' in the text, replace it with '>'. Mark sure the whitespaces either side of &gt; are removed.
     - Replace special markdown syntax with the original characters.
     - Create a list of JSON objects for each section/subsection/subsections of subsections, where appropriate.
@@ -97,7 +111,7 @@ def vlm_TextExtraction(context, markdown_path):
     - To the 'subsection_header' key, assign the subsection header of the section that the text derives from.
     - To the 'sub_subsection_header' key, assign the header of the subsection of the subsection that the text derives from.
     - To the 'text' key, assign the text from the section/subsection/subsection of the subsection specified in this JSON object.
-    - To the 'genes_mentioned' key, assign a list of the names of the genes mentioned in the corresponding input text.
+    - To the 'genes_mentioned' key, assign a list of gene symbols of the genes mentioned in the corresponding input text.
     - To the 'variant_count' key, assign the number of variants that appear in the input text.
     - Do not count the genomic and proteomic variant descriptions of the same variant more than once.
     - To the 'variants' key, assign a list of objects for each and every variant mentioned in the corresponding input text.
@@ -109,8 +123,8 @@ def vlm_TextExtraction(context, markdown_path):
     - To the 'protein_variant' key, assign the variant described at the protein level as it appears in the corresponding text. It should start with 'p.' but might not. Remove any whitespace in the variant nomenclature.
     - To the 'protein_domain' key, assign the protein domain of the protein that the corresponding variant is in. Use the markdown file that I sent earlier for context.
     - To the 'clinical_information' key, provide and assign a comprehensive analysis and description of the clinical information related to the corresponding variant from the corresponding text. Use the markdown file that I sent earlier for context.
-    - To the 'clinical_significance' key, provide and assign a comprehensive analysis and description of the clinical significance of the corresponding variant from the the corresponding text. Use the markdown file that I sent earlier for context.
-    - To the 'frequency' key, assign the frequency of the corresponding variant as described in corresponding text.
+    - To the 'clinical_significance' key, provide and assign a comprehensive analysis and description of the clinical significance of the corresponding variant from the the corresponding text. If multiple descriptions exist, list all of the descriptions. Use the markdown file that I sent earlier for context.
+    - To the 'frequency' key, assign the frequency of the corresponding variant as described in corresponding text. State the variables that the frequency is describing in detail.
     - To the 'het_carriers' key, assign the number of affected carriers with the corresponding variant in a heterozygous genotype counted in the corresponding text.
     - To the 'hom_carriers' key, assign the number of affected carriers with the corresponding variant in a homozygous genotype counted in the corresponding text.
     - To the 'affected_carriers' key, assign the total number of affected carriers with the corresponding variant counted in the corresponding text.
@@ -152,10 +166,12 @@ def vlm_TextExtraction(context, markdown_path):
     print(response["message"]["content"])
 
     with open("ollama_token_costs.txt", 'a') as f:
-        f.write(f"vlm_TextExtraction: {markdown_path}\n"
+        f.write(f"vlm_TextExtraction"
+                f"Path to markdown file processed by VLM: {markdown_path}\n"
+                f"Size of markdown file: {os.path.getsize(markdown_path)} bytes\n"
                 f"Query costed: {response['prompt_eval_count']} tokens\n"
                 f"Response costed: {response['eval_count']} tokens\n"
-                f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n")
+                f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n\n")
 
     print(f"Query costed: {response['prompt_eval_count']} tokens")
     print(f"Response costed: {response['eval_count']} tokens")
@@ -232,11 +248,14 @@ def vlm_TextDescription(input_text, context, markdown_path):
     #print(response["message"]["content"])
 
     with open("ollama_token_costs.txt", 'a') as f:
-        f.write(f"vlm_TextDescription: {markdown_path}\n"
+        f.write(f"vlm_TextExtraction"
+                f"Path to markdown file processed by VLM: {markdown_path}\n"
+                f"Size of markdown file: {os.path.getsize(markdown_path)} bytes\n"
                 f"text={input_text}\n"
+                f"Size of input text: {len(input_text)} characters\n"
                 f"Query costed: {response['prompt_eval_count']} tokens\n"
                 f"Response costed: {response['eval_count']} tokens\n"
-                f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n")
+                f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n\n")
 
     print(f"Query costed: {response['prompt_eval_count']} tokens")
     print(f"Response costed: {response['eval_count']} tokens")
@@ -346,10 +365,12 @@ def vlm_ImageDescription(image_path, context):
     print(response["message"]["content"])
 
     with open("ollama_token_costs.txt", 'a') as f:
-        f.write(f"vlm_ImageDescription: {image_path}\n"
+        f.write(f"vlm_ImageDescription"
+                f"Path to image: {image_path}\n"
+                f"Size of image: {os.path.getsize(image_path)} bytes\n"
                 f"Query costed: {response['prompt_eval_count']} tokens\n"
                 f"Response costed: {response['eval_count']} tokens\n"
-                f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n")
+                f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n\n")
 
     print(f"Query costed: {response['prompt_eval_count']} tokens")
     print(f"Response costed: {response['eval_count']} tokens")
@@ -385,10 +406,11 @@ def imageChecker(image_path):
     print(response["message"]["content"])
 
     with open("ollama_token_costs.txt", 'a') as f:
-        f.write(f"vlm_ImageDescription: {image_path}\n"
+        f.write(f"vlm_ImageDescription"
+                f"Path to image: {image_path}\n"
                 f"Query costed: {response['prompt_eval_count']} tokens\n"
                 f"Response costed: {response['eval_count']} tokens\n"
-                f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n")
+                f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n\n")
 
     print(f"Query costed: {response['prompt_eval_count']} tokens")
     print(f"Response costed: {response['eval_count']} tokens")

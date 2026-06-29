@@ -7,6 +7,7 @@ from docling.datamodel.pipeline_options import (
     TesseractCliOcrOptions,
 )
 import os
+import re
 from pathlib import Path
 
 def docling_PDF2Text(filepath:str):
@@ -38,8 +39,22 @@ def docling_PDF2Text(filepath:str):
     md = doc.export_to_markdown()
     markdown_filepath = f'{pdf_name}.md'
 
-    with open(markdown_filepath, 'w') as f:
-        f.write(md)
+    delete_list = []
+    for i, section in enumerate(md.split('##')):
+        if section.lower().startswith(" references"):
+            delete_list.append(i)
+        if section.lower().startswith(" abstract"):
+            delete_list.append(i)
+        if section.lower().startswith(" acknowledgements") or section.lower().startswith(" acknowledgments"):
+            delete_list.append(i)
+        if section.lower().startswith(" conflicts of interest") or section.lower().startswith(" conflict of interest"):
+            delete_list.append(i)
+
+    with open(markdown_filepath, 'a') as f:
+        for i, section in enumerate(md.split('##')):
+            section.strip()
+            if i not in delete_list:
+                f.write(f"##{section}")
 
     print("---markdown created successfully---")
 

@@ -37,8 +37,18 @@ def weaviateImportText(dict_list, model):
                         vector_index_config=wvc.Configure.VectorIndex.hnsw(
                             distance_metric=wvc.VectorDistances.COSINE  # ColBERT uses Dot Product for MaxSim
                         ),
+                    ),
+                    wvc.Configure.Vectors.none(
+                        name="sparse",
                     )
                 ],
+                inverted_index_config=wvc.Configure.inverted_index(
+                    bm25_b=0.7,
+                    bm25_k1=1.25,
+                    indexTimestamps=True,
+                    indexNullState=True,
+                    invertedIndexConfig=True
+                ),
                 # This is the key part for Late Interaction models
                 properties=[
                     wvc.Property(name="title", data_type=wvc.DataType.TEXT),
@@ -73,35 +83,9 @@ def weaviateImportText(dict_list, model):
                     wvc.Property(name="genes_mentioned", data_type=wvc.DataType.TEXT_ARRAY),
                     wvc.Property(name="variant_count", data_type=wvc.DataType.INT),
 
-                    wvc.Property(
-                        name="sparse_weights",
-                        data_type=wvc.DataType.OBJECT_ARRAY,
-                        nested_properties=[
-                            wvc.Property(name="token", data_type=wvc.DataType.TEXT),
-                            wvc.Property(name="weight", data_type=wvc.DataType.NUMBER),
-                        ]
-                    ),
+                    #wvc.Property(name="sparse_weights", data_type=wvc.DataType.TEXT),
 
-                    wvc.Property(
-                        name="variants",
-                        data_type=wvc.DataType.OBJECT_ARRAY,
-                        nested_properties = [
-                            wvc.Property(name="gene", data_type=wvc.DataType.TEXT),
-                            wvc.Property(name="genomic_variant", data_type=wvc.DataType.TEXT),
-                            wvc.Property(name="transcript_variant", data_type=wvc.DataType.TEXT),
-                            wvc.Property(name="exon", data_type=wvc.DataType.TEXT),
-                            wvc.Property(name="protein_variant", data_type=wvc.DataType.TEXT),
-                            wvc.Property(name="protein_domain", data_type=wvc.DataType.TEXT),
-                            wvc.Property(name="clinical_information", data_type=wvc.DataType.TEXT),
-                            wvc.Property(name="clinical_significance", data_type=wvc.DataType.TEXT),
-                            wvc.Property(name="frequency", data_type=wvc.DataType.TEXT),
-                            wvc.Property(name="het_carriers", data_type=wvc.DataType.TEXT),
-                            wvc.Property(name="hom_carriers", data_type=wvc.DataType.TEXT),
-                            wvc.Property(name="affected_carriers", data_type=wvc.DataType.TEXT),
-                            wvc.Property(name="unaffected_carriers", data_type=wvc.DataType.TEXT),
-                            wvc.Property(name="number_of_meioses", data_type=wvc.DataType.TEXT)
-                        ]
-                    )
+                    wvc.Property(name="variants", data_type=wvc.DataType.TEXT_ARRAY)
                 ]
             )
 
@@ -133,19 +117,27 @@ def weaviateImportText(dict_list, model):
 
                 dense = encoded['dense_vecs'].astype("float32").tolist()
 
+                indices = []
+                values = []
                 sparse_dict = encoded['lexical_weights']
-                sparse = []
                 for key, value in sparse_dict.items():
-                    sparse_weight = {}
-                    sparse_weight["token"] = key
-                    sparse_weight["weight"] = float(value)
-                    sparse.append(sparse_weight)
+                    indices.append(int(key))
+                    values.append(float(value))
 
+                print(indices)
+                print(values)
 
                 with open("chunk_sizes.txt", "a") as f:
-                    f.write(f"Chunk No.: {var_dict['chunk_idx']}\n"
-                            f"Dense vector length: {len(dense)}\n"
-                            f"Sparse vector length: {len(sparse)}\n")
+                    f.write(
+                        f"Path: {var_dict['path']}\n"
+                        f"Paper: {var_dict['title']}\n"
+                        f"Section: {var_dict['section_header']}\n"
+                        f"Subsection: {var_dict['subsection_header']}\n"
+                        f"Chunk No.: {var_dict['chunk_idx']}\n"
+                        f"Dense vector length: {len(dense)}\n"
+                        f"Sparse indices length: {len(indices)}\n"
+                        f"Sparse values length: {len(values)}\n\n"
+                    )
 
                 properties = {
                     "title": var_dict["title"],
@@ -159,31 +151,18 @@ def weaviateImportText(dict_list, model):
                     "description": var_dict["description"],
                     "genes_mentioned": var_dict["genes_mentioned"],
                     "variant_count": int(var_dict["variant_count"]),
-                    "sparse_weights": sparse,
-                    "variants": [
-                        {
-                            "gene": variant["gene"],
-                            "genomic_variant": variant["genomic_variant"],
-                            "transcript_variant": variant["transcript_variant"],
-                            "exon": variant["exon"],
-                            "protein_variant": variant["protein_variant"],
-                            "protein_domain": variant["protein_domain"],
-                            "clinical_information": variant["clinical_information"],
-                            "clinical_significance": variant["clinical_significance"],
-                            "frequency": variant["frequency"],
-                            "het_carriers": variant["het_carriers"],
-                            "hom_carriers": variant["hom_carriers"],
-                            "affected_carriers": variant["affected_carriers"],
-                            "unaffected_carriers": variant["unaffected_carriers"],
-                            "number_of_meioses": variant["number_of_meioses"]
-                        } for variant in var_dict.get("variants", [])
-                    ]
+                    #"sparse_weights": sparse,
+                    "variants": [json.dumps(variant) for variant in var_dict.get("variants", [])]
                 }
 
                 batch.add_object(
                     properties=properties,
                     vector={
-                        "dense": dense
+                        "dense": dense,
+                        "sparse": {
+                            "indices": indices,
+                            "values": values
+                        }
                     }
                 )
 
@@ -369,9 +348,7 @@ def weaviateImportImage(dict_list, model):
 
                 batch.add_object(
                     properties=properties,
-                    vector={
-                        "dense": dense
-                    }
+                    vector=dense
                 )
 
                 upload_counter = upload_counter + 1
