@@ -47,10 +47,23 @@ def vlm_loadContext(markdown_path):
 
 
 def vlm_TextExtraction(context, markdown_path):
+    """
+    This function sends a prompt to the VLM with the text extracted from the .pdf file. The VLM returns a list of
+    dictionaries in JSON format, each one consisting of text from a subsection in the .pdf file along with additional
+    metadata to help with indexing the text in the Qdrant vector database.
 
+    :params: context: the text from the .pdf file.
+             markdown_path: the filepath to the .pdf markdown file.
+
+    :return: JSON with text from a subsection of the .pdf file along with additional metadata.
+    """
+
+    # Read the content of the .pdf file.
     #with open(markdown_path, "r", encoding='utf-8') as f:
         #context = f.read()
 
+    # The initial query sent to the VLM is assigned to the 'VLM_query' variable. It describes what the desired output
+    # should be.
     VLM_query = (
         'Process the markdown file in accordance with the instructions below. Return each subsection of every '
         'section/subsection/subsection of a subsection from the markdown file in accordance with the following JSON '
@@ -77,6 +90,8 @@ def vlm_TextExtraction(context, markdown_path):
         '   "number_of_meioses": ""}]}'
     )
 
+    # The context (text from the .pdf in markdown format), the VLM_query and instructions of how text should be
+    # processed to achieve the desired outcome as assigned to the 'prompt' variable.
     prompt = f"""
     ---------------------
     CONTEXT: {list(context)}
@@ -132,6 +147,10 @@ def vlm_TextExtraction(context, markdown_path):
     - One meiosis is the inheritance of a variant from one affected individual to their affected child.
     - To the 'number_of_meioses' key, assign the total number of meioses of the corresponding variant counted in the corresponding text.
     """
+
+    # The VLM needs to be assigned to a character so it understands the language used in the prompt more accurately.
+    # It also wants to distinguish the system prompt from the user's prompt. The role and corresponding prompt are
+    # defined in two separate dictionaries compiled in a list.
     messages = [
         {
             "role": "system",
@@ -146,6 +165,7 @@ def vlm_TextExtraction(context, markdown_path):
         }
     ]
 
+    
     response = chat(
         #model="qwen2.5:7b",
         model = "qwen3.5:397b-cloud",
