@@ -17,10 +17,15 @@ ollama pull gpt-oss:120b-cloud
 ```bash
 pip install -r requirements.txt
 ```
-5. Compose the docker image in the weaviate directory.
+5. Pull the Qdrant docker image.
 ```bash
-cd weaviate
-docker compose up -d
+docker pull qdrant/qdrant
+```
+6. Run the Qdrant docker image in detached mode.
+```bash
+docker run -d -p 6333:6333 -p 6334:6334 \
+    -v "$(pwd)/qdrant_storage:/qdrant/storage:z" \
+    qdrant/qdrant
 ```
 
 don't forget to:
