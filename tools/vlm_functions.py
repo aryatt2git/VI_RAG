@@ -4,8 +4,10 @@ import os
 def vlm_loadContext(markdown_path):
     """
     This function loads the .pdf markdown file into memory, to use it for context when preparing the JSON objects.
-    The function was designed to reduce the amount of tokens used to query the VLM but it was later found that there is
-    not much difference.
+    The function was created to reduce the amount of tokens used to query the VLM but it was later found that there is
+    not much difference in token cost.
+
+    :params: markdown_path: the filepath to the .pdf markdown file.
     """
 
     with open(markdown_path, 'r', encoding="utf-8") as f:
@@ -51,21 +53,23 @@ def vlm_loadContext(markdown_path):
     return messages
 
 
-def vlm_TextExtraction(context, markdown_path):
+def vlm_TextExtraction(context=None, markdown_path=None):
     """
     This function sends a prompt to the VLM with the text extracted from the .pdf file. The VLM returns a list of
     dictionaries in JSON format, each one consisting of text from a subsection in the .pdf file along with additional
     metadata to help with indexing the text in the Qdrant vector database.
 
-    :params: context: the text from the .pdf file, used to provide context to the query.
-             markdown_path: the filepath to the .pdf markdown file, to be recorded in the 'ollama_token_costs.txt'.
+    :params: context: the text from the .pdf file, used to provide context to the query, provided by the vlm_loadtext()
+                      function.
+             markdown_path: the filepath to the .pdf markdown file, used to provide context to the query and to be
+                            recorded in the 'ollama_token_costs.txt'.
 
     :return: JSON with text from a subsection of the .pdf file along with additional metadata.
     """
 
-    # Read the content of the .pdf file.
-    #with open(markdown_path, "r", encoding='utf-8') as f:
-        #context = f.read()
+    # This code can be used to read the text in the .pdf markdown file, instead of referring to the loadtext() function.
+    with open(markdown_path, "r", encoding='utf-8') as f:
+        context = f.read()
 
     # The initial query sent to the VLM is assigned to the 'VLM_query' variable. It describes what the desired output
     # should be.
@@ -97,9 +101,10 @@ def vlm_TextExtraction(context, markdown_path):
 
     # The context (text from the .pdf in markdown format), the VLM_query and instructions of how text should be
     # processed to achieve the desired outcome as assigned to the 'prompt' variable.
+    # Use <CONTEXT: {list(context)}> if using the vlm_loadContext() output for context.
     prompt = f"""
     ---------------------
-    CONTEXT: {list(context)}
+    CONTEXT: {context}
     ---------------------
     QUESTION: {VLM_query}
     ---------------------
@@ -159,10 +164,9 @@ def vlm_TextExtraction(context, markdown_path):
     messages = [
         {
             "role": "system",
-            "content": "You are the best text parser and genomic clinical scientist ever because of your ability to "
-                       "understand the content and structure of research papers/articles/literature stored in markdown "
-                       "files. Include only text from the markdown file I sent to you before for context. Do not "
-                       "hallucinate. Do not speculate."
+            "content": "You are a text parser and genomic clinical scientist with the ability to understand the "
+                       "content and structure of research papers/articles/literature stored in markdown files. Include "
+                       "only text from the markdown file for context. Do not hallucinate. Do not speculate."
         },
         {
             "role": "user",
@@ -210,7 +214,7 @@ def vlm_TextExtraction(context, markdown_path):
     return response["message"]["content"]
 
 
-def vlm_TextDescription(input_text, context, markdown_path):
+def vlm_TextDescription(input_text, context=None, markdown_path=None):
     """
     This function sends a prompt to the VLM to provide a description of the input_text using text extracted from the
     .pdf markdown file for context. The input_text is a chunk of text from a subsection of the .pdf file used to
@@ -218,14 +222,18 @@ def vlm_TextDescription(input_text, context, markdown_path):
     of the input text assigned to it.
 
     :params: input text: a chunk of text from a subsection of the .pdf markdown file used to provide context.
-             context: the text from the .pdf markdown file.
-             markdown_path: the filepath to the .pdf markdown file, to be recorded in the 'ollama_token_costs.txt'.
+             context: the text from the .pdf markdown file provided by the vlm_loadtext() function, used to provide
+                      context to the query, provided by the vlm_loadtext() function.
+             markdown_path: the filepath to the .pdf markdown file, used to provide context to the query and to be
+                            recorded in the 'ollama_token_costs.txt'.
 
     :return: JSON containing a single item, with 'description' as the key and .
     """
 
-    #with open(markdown_path, "r", encoding='utf-8') as f:
-        #context = f.read()
+    # This code can be used to read the text in the .pdf markdown file, instead of referring to the vlm_loadtext()
+    # function.
+    with open(markdown_path, "r", encoding='utf-8') as f:
+        context = f.read()
 
     # The initial query sent to the VLM is assigned to the 'VLM_query' variable. It describes what the desired output
     # should be and the subject of the query, along with some basic instructions.
@@ -240,9 +248,10 @@ def vlm_TextDescription(input_text, context, markdown_path):
 
     # The context (text from the .pdf in markdown format), the VLM_query and instructions of how text should be
     # processed to achieve the desired outcome as assigned to the 'prompt' variable.
+    # Use <CONTEXT: {list(context)}> if using the vlm_loadContext() output for context.
     prompt = f"""
     ---------------------
-    CONTEXT: {list(context)}
+    CONTEXT: {context}
     ---------------------
     QUESTION: {VLM_query}
     ---------------------
@@ -265,10 +274,10 @@ def vlm_TextDescription(input_text, context, markdown_path):
     messages = [
         {
             "role": "system",
-            "content": "You are the best genomic clinical scientist ever with the ability to understand, "
-                       "analyse and interpret the content of research papers/articles/literature stored in markdown "
-                       "format. Use only the input text and the markdown file context I sent to you earlier for "
-                       "context. Do not hallucinate. Do not speculate."
+            "content": "You are a genomic clinical scientist with the ability to understand, analyse and interpret the "
+                       "content of research papers/articles/literature stored in markdown format. Use only the input "
+                       "text and the markdown file context I sent to you earlier for context. Do not hallucinate. Do "
+                       "not speculate."
         },
         {
             "role": "user",
@@ -279,25 +288,25 @@ def vlm_TextDescription(input_text, context, markdown_path):
     # The chat() function sends the above message to a specified model with additional parameters. The response is
     # returned in JSON.
     response = chat(
-        #model="qwen2.5:7b",
         model = "qwen3.5:397b-cloud",
         messages = messages,
         format="json",
         options={
-            'temperature': 0.0,  # Lower temperature makes the output more focused and consistent
-            'repeat_penalty': 1.0,  # Setting to 1.0 turns OFF the penalty that stops it from repeating itself
-            'num_predict': 25000,  # Give the model plenty of room to write a long answer
-            'seed': 42,  # Uncomment this if you want the EXACT same answer every single time
-            'num_ctx': 32768,  # Add this to handle the image + markdown
+            'temperature': 0.0,     # 0-1. Lower temperature makes the output more focused and consistent
+            'repeat_penalty': 1.0,  # Setting to 1.0 turns OFF the penalty that stops it from repeating itself.
+                                    # >1.0 increases the penalty for repetition, making repetition less likely.
+            'num_predict': 25000,   # Give the model plenty of room to write a long answer
+            'seed': 42,             # This combines with temperature to produce the EXACT same answer every single time.
+            'num_ctx': 32768,       # Add this to handle the image + markdown
         },
-        keep_alive = 0  # This forces a fresh start for the next run
+        keep_alive = 0              # This forces the model to restart for the next query.
     )
 
     print(f"------VLM EXTRACTING TEXT FROM ------")
     # Log the VLM response to keep a record of what was returned by the VLM.
     print(response["message"]["content"])
 
-    # The path to the markdown file, the file size of the markdown file, the input text and its length in size, the
+    # The path to the markdown file, the file size of the markdown file, the input text and its length, the
     # number of tokens it cost to query and receive a response from the VLM are all recorded in the
     # 'ollama_token_costs.txt' file, in case the token cost needs to be evaluated.
     with open("ollama_token_costs.txt", 'a') as f:
@@ -318,13 +327,31 @@ def vlm_TextDescription(input_text, context, markdown_path):
     return response["message"]["content"]
 
 
-def vlm_ImageDescription(image_path, context):
+def vlm_ImageDescription(image_path, context=None, markdown_path=None):
+    """
+    This function sends a prompt to the VLM to provide a description of a figure or table from the a .pdf markdown,
+    using the .pdf markdown file for context. Captions and figures from the the .pdf markdown file  are used to provide
+    context. The VLM returns a dictionary in JSON format, consisting of a 'description' key and a description
+    of the image assigned to it, along with additional metadata to assist with retrieval of the information from the
+    vector database.
 
-    #with open(markdown_path, "r", encoding='utf-8') as f:
-        #context = f.read()
+    :params: image_path: the filepath to the image file.
+             context: the text from the .pdf markdown file.
+             markdown_path: the filepath to the .pdf markdown file, to be recorded in the 'ollama_token_costs.txt'.
 
+    :return: JSON containing a description of the image, assigned to the 'description' key along with additional
+             metadata.
+    """
+
+    # This code can be used to read the text in the .pdf markdown file, instead of referring to the vlm_loadtext()
+    # function.
+    with open(markdown_path, "r", encoding='utf-8') as f:
+        context = f.read()
+
+    # The initial query sent to the VLM is assigned to the 'VLM_query' variable. It describes what the desired output
+    # should be and the subject of the query, along with some basic instructions.
     VLM_query = (
-        'You are the best text parser and genomic clinical scientist ever because of your ability to understand the '
+        'You are the a text parser and genomic clinical scientist with the ability to understand the '
         'content and structure of research papers/articles/literature stored in markdown format. Include only text from '
         'the markdown file I sent to you before for context. Do not hallucinate. Do not speculate.'
         'Process the image using the markdown file as context in accordance with the instructions below. Analyse the '
@@ -333,9 +360,12 @@ def vlm_ImageDescription(image_path, context):
         '{"title": "", "authors": [], "type": "", "figure_table_no": "", "sub_figure_table_no": "", "caption": "", "description": "", "table": "", "genes_mentioned": [], "variant_count": "", "variants": [{"gene": "", "genomic_variant": "", "transcript_variant": "", "exon": "", "protein_variant": "", "protein_domain": "", "clinical_information": "", "clinical_significance": "", "evidence": "", "frequency": "", "het_carriers": "", "hom_carriers": "", "affected_carriers": "", "unaffected_carriers": "", "number_of_meioses": ""}]}'
     )
 
+    # The context (text from the .pdf in markdown format), the VLM_query and instructions of how the image should be
+    # processed to achieve the desired outcome is assigned to the 'prompt' variable.
+    # Use <CONTEXT: {list(context)}> if using the vlm_loadContext() output for context.
     prompt = f"""
     ---------------------
-    CONTEXT: {list(context)}
+    CONTEXT: {context}
     ---------------------
     QUESTION: {VLM_query}
     ---------------------
@@ -385,13 +415,17 @@ def vlm_ImageDescription(image_path, context):
     - To the 'n_mentions' key, assign the total number of times the variant was mentioned throughout the corresponding text in any way, whether it be in its genomic, transcript or protein description or in an abbreviated format.
     """
 
+    # The VLM needs to be assigned to a character so it understands the language used in the prompt more accurately.
+    # It also wants to distinguish the system prompt from the user's prompt. The role and corresponding prompt are
+    # defined in two separate dictionaries compiled in a list. The path to the image file is provided in the dictionary
+    # which defines the user's role.
     messages = [
         {
             "role": "system",
-            "content": "You are the best genomic clinical scientist ever because of your ability to understand, "
-                       "analyse and interpret the content of research papers/articles/literature stored in markdown "
-                       "format. Use only the input text and the markdown file context I sent to you earlier for "
-                       "context. Do not hallucinate. Do not speculate."
+            "content": "You are a genomic clinical scientist with the ability to understand, analyse and interpret the "
+                       "content of research papers/articles/literature stored in markdown format. Use only the input "
+                       "text and the markdown file context I sent to you earlier for context. Do not hallucinate. Do "
+                       "not speculate."
         },
         {
             "role": "user",
@@ -400,27 +434,34 @@ def vlm_ImageDescription(image_path, context):
         }
     ]
 
+    # The chat() function sends the above message to a specified model with additional parameters. The response is
+    # returned in JSON.
     response = chat(
-        #model="qwen2.5:7b",
         model = "qwen3.5:397b-cloud",
         messages = messages,
         format="json",
         options={
-            'temperature': 0.0,  # Lower temperature makes the output more focused and consistent
-            'repeat_penalty': 1.0,  # Setting to 1.0 turns OFF the penalty that stops it from repeating itself
-            'num_predict': 25000,  # Give the model plenty of room to write a long answer
-            'seed': 42,  # Uncomment this if you want the EXACT same answer every single time
-            'num_ctx': 32768,  # Add this to handle the image + markdown
+            'temperature': 0.0,     # 0-1. Lower temperature makes the output more focused and consistent
+            'repeat_penalty': 1.0,  # Setting to 1.0 turns OFF the penalty that stops it from repeating itself.
+                                    # >1.0 increases the penalty for repetition, making repetition less likely.
+            'num_predict': 25000,   # Give the model plenty of room to write a long answer
+            'seed': 42,             # This combines with temperature to produce the EXACT same answer every single time.
+            'num_ctx': 32768,       # Add this to handle the image + markdown
         },
-        keep_alive="20m"  # This forces a fresh start for the next run
+        keep_alive="20m"            # This forces the model to restart for the next query.
     )
 
     print("--- VLM RESPONSE ---")
-
+    # Log the VLM response to keep a record of what was returned by the VLM.
     print(response["message"]["content"])
 
+    # The path to the markdown file, the file size of the markdown file, The path to the image file, the file size of
+    # the image file, the number of tokens it cost to query and receive a response from the VLM are all recorded in the
+    # 'ollama_token_costs.txt' file, in case the token cost needs to be evaluated.
     with open("ollama_token_costs.txt", 'a') as f:
         f.write(f"vlm_ImageDescription"
+                f"Path to markdown file processed by VLM: {markdown_path}\n"
+                f"Size of markdown file: {os.path.getsize(markdown_path)} bytes\n"
                 f"Path to image: {image_path}\n"
                 f"Size of image: {os.path.getsize(image_path)} bytes\n"
                 f"Query costed: {response['prompt_eval_count']} tokens\n"
@@ -431,10 +472,26 @@ def vlm_ImageDescription(image_path, context):
     print(f"Response costed: {response['eval_count']} tokens")
     print(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
 
+    # The JSON response from the VLM is returned.
     return response["message"]["content"]
 
 def imageChecker(image_path):
+    """
+    This functions sends a prompt to the VLM, querying if an image has any scientific or clinical relevance. This is
+    used as a quick check to ensure that only clinically significant images are processed by the vlm_ImageDescription()
+    function because it costs much more tokens to process images by that function than this function.
 
+    :params: image_path: the filepath to the image file.
+
+    :return: 'True' if the image has any scientific or clinical significance.
+             or
+             'False' otherwise.
+    """
+
+    # The VLM needs to be assigned to a character so it understands the language used in the prompt more accurately.
+    # It also wants to distinguish the system prompt from the user's prompt. The role and corresponding prompt are
+    # defined in two separate dictionaries compiled in a list. The path to the image file is provided in the dictionary
+    # which defines the user's role.
     messages = [
         {
             "role": "system",
@@ -450,6 +507,7 @@ def imageChecker(image_path):
         }
     ]
 
+    # The chat() function sends the above message to a specified model.
     response = chat(
         # model="qwen2.5:7b",
         model="qwen3.5:397b-cloud",
@@ -457,12 +515,16 @@ def imageChecker(image_path):
     )
 
     print("--- VLM RESPONSE ---")
-
+    # Log the VLM response to keep a record of what was returned by the VLM.
     print(response["message"]["content"])
 
+    # The path to the image file, the file size of the image file, the number of tokens it cost to query and receive a
+    # response from the VLM are all recorded in the 'ollama_token_costs.txt' file, in case the token cost needs to be
+    # evaluated.
     with open("ollama_token_costs.txt", 'a') as f:
-        f.write(f"vlm_ImageDescription"
+        f.write(f"vlm_ImageChecker"
                 f"Path to image: {image_path}\n"
+                f"Size of image: {os.path.getsize(image_path)} bytes\n"
                 f"Query costed: {response['prompt_eval_count']} tokens\n"
                 f"Response costed: {response['eval_count']} tokens\n"
                 f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n\n")
@@ -471,4 +533,5 @@ def imageChecker(image_path):
     print(f"Response costed: {response['eval_count']} tokens")
     print(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
 
+    # True or False response from the VLM.
     return response["message"]["content"]
