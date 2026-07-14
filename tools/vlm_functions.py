@@ -1,5 +1,11 @@
 from ollama import chat
 import os
+from logger import setup_logging
+import logging
+
+# Setup logging.
+setup_logging()
+logger = logging.getLogger(__name__)
 
 def vlm_loadContext(markdown_path):
     """
@@ -10,22 +16,29 @@ def vlm_loadContext(markdown_path):
     :params: markdown_path: the filepath to the .pdf markdown file.
     """
 
+    # Read the text from the .pdf markdown file and assign it to the 'md_test' variable.
     with open(markdown_path, 'r', encoding="utf-8") as f:
         md_text = f.read()
 
+    # The VLM needs to be assigned to a character so it understands the language used in the prompt more accurately.
+    # It also wants to distinguish the system prompt from the user's prompt. The role and corresponding prompt are
+    # defined in two separate dictionaries compiled in a list.
     messages = [
         {
             "role": "system",
-            "content": "You are the best text parser and genomic clinical scientist ever because of your ability to "
-                       "understand the content and structure of research papers/articles/literature stored in markdown "
-                       "files."
+            "content": "You are a text parser and genomic clinical scientist with the ability to understand the "
+                       "content and structure of research papers/articles/literature stored in markdown files."
         },
         {
             "role": "user",
-            "content": f"I am going to provide a markdown file to be used as context. Please recognise and memorise every detail in it. Please commit as much as information to memory as possible. Acknowledge with 'Markdown Loaded'.\nContext:\n{md_text})"
+            "content": f"I am going to provide a markdown file to be used as context. Please recognise and memorise "
+                       f"every detail in it. Please commit as much as information to memory as possible. Acknowledge "
+                       f"with 'Markdown Loaded'.\nContext:\n{md_text}"
         }
     ]
 
+    # The chat() function sends the above message to a specified model with additional parameters. The response is
+    # returned as a list.
     response = chat(
         #model = "qwen2.5:7b",
         model = "qwen3.5:397b-cloud",
@@ -34,21 +47,31 @@ def vlm_loadContext(markdown_path):
         keep_alive = "60m"
     )
 
-    print("---Loading context to memory---")
+    # Log that the .pdf.markdown is being loaded to memory.
+    logger.info(f"Loading {markdown_path} to memory for context.")
 
     #print(response["message"])
 
+    # The path to the markdown file, the file size of the markdown file, the number of tokens it cost to query and
+    # receive a response from the VLM are all recorded in the 'ollama_token_costs.txt' file, in case the token cost
+    # needs to be evaluated.
     with open("ollama_token_costs.txt", 'a') as f:
         f.write(f"vlm_loadContext: {markdown_path}\n"
                 f"Query costed: {response['prompt_eval_count']} tokens\n"
                 f"Response costed: {response['eval_count']} tokens\n"
                 f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n")
 
-    print(f"Query costed: {response['prompt_eval_count']} tokens")
-    print(f"Response costed: {response['eval_count']} tokens")
-    print(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
+    # Log how many tokens commiting the .pdf.markdown file to memory cost.
+    logger.info(f"Query costed: {response['prompt_eval_count']} tokens")
+    logger.info(f"Response costed: {response['eval_count']} tokens")
+    logger.info(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
 
+    # Append the response message to the 'messages' variable.
     messages.append(response["message"])
+
+    # Log the response from vlm_loadContext().
+    logger.info(f"Response from loading {os.path.basename(markdown_path)}:")
+    logger.info(response["message"])
 
     return messages
 
@@ -191,9 +214,9 @@ def vlm_TextExtraction(context=None, markdown_path=None):
         keep_alive = 0              # This forces the model to restart for the next query.
     )
 
-    print("--- VLM RESPONSE ---")
-    # Log the VLM response to keep a record of what was returned by the VLM.
-    print(response["message"]["content"])
+    # Log the VLM response to keep a record of what was returned by the vlm_TextExtraction function.
+    logger.info(f"vlm_TextExtraction response for {os.path.basename(markdown_path)}:")
+    logger.info(response["message"]["content"])
 
     # The path to the markdown file, the file size of the markdown file, the number of tokens it cost to query and
     # receive a response from the VLM are all recorded in the 'ollama_token_costs.txt' file, in case the token cost
@@ -206,9 +229,10 @@ def vlm_TextExtraction(context=None, markdown_path=None):
                 f"Response costed: {response['eval_count']} tokens\n"
                 f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n\n")
 
-    print(f"Query costed: {response['prompt_eval_count']} tokens")
-    print(f"Response costed: {response['eval_count']} tokens")
-    print(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
+    # Log the number of tokens it cost to generate the response.
+    logger.info(f"Query costed: {response['prompt_eval_count']} tokens")
+    logger.info(f"Response costed: {response['eval_count']} tokens")
+    logger.info(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
 
     # The JSON response is returned.
     return response["message"]["content"]
@@ -302,9 +326,9 @@ def vlm_TextDescription(input_text, context=None, markdown_path=None):
         keep_alive = 0              # This forces the model to restart for the next query.
     )
 
-    print(f"------VLM EXTRACTING TEXT FROM ------")
-    # Log the VLM response to keep a record of what was returned by the VLM.
-    print(response["message"]["content"])
+    # Log the VLM response to keep a record of what was returned by the vlm_TextExtraction function.
+    logger.info(f"vlm_TextDescription response for {input_text}:")
+    logger.info(response["message"]["content"])
 
     # The path to the markdown file, the file size of the markdown file, the input text and its length, the
     # number of tokens it cost to query and receive a response from the VLM are all recorded in the
@@ -319,9 +343,10 @@ def vlm_TextDescription(input_text, context=None, markdown_path=None):
                 f"Response costed: {response['eval_count']} tokens\n"
                 f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n\n")
 
-    print(f"Query costed: {response['prompt_eval_count']} tokens")
-    print(f"Response costed: {response['eval_count']} tokens")
-    print(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
+    # Log the number of tokens it cost to generate the response.
+    logger.info(f"Query costed: {response['prompt_eval_count']} tokens")
+    logger.info(f"Response costed: {response['eval_count']} tokens")
+    logger.info(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
 
     # The JSON response with the description is returned.
     return response["message"]["content"]
@@ -451,9 +476,9 @@ def vlm_ImageDescription(image_path, context=None, markdown_path=None):
         keep_alive="20m"            # This forces the model to restart for the next query.
     )
 
-    print("--- VLM RESPONSE ---")
-    # Log the VLM response to keep a record of what was returned by the VLM.
-    print(response["message"]["content"])
+    # Log the VLM response to keep a record of what was returned by the vlm_ImageDescription function.
+    logger.info(f"vlm_ImageDescription response for {os.path.basename(image_path)}:")
+    logger.info(response["message"]["content"])
 
     # The path to the markdown file, the file size of the markdown file, The path to the image file, the file size of
     # the image file, the number of tokens it cost to query and receive a response from the VLM are all recorded in the
@@ -468,9 +493,10 @@ def vlm_ImageDescription(image_path, context=None, markdown_path=None):
                 f"Response costed: {response['eval_count']} tokens\n"
                 f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n\n")
 
-    print(f"Query costed: {response['prompt_eval_count']} tokens")
-    print(f"Response costed: {response['eval_count']} tokens")
-    print(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
+    # Log the number of tokens it cost to generate the response.
+    logger.info(f"Query costed: {response['prompt_eval_count']} tokens")
+    logger.info(f"Response costed: {response['eval_count']} tokens")
+    logger.info(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
 
     # The JSON response from the VLM is returned.
     return response["message"]["content"]
@@ -514,9 +540,9 @@ def imageChecker(image_path):
         messages=messages
     )
 
-    print("--- VLM RESPONSE ---")
     # Log the VLM response to keep a record of what was returned by the VLM.
-    print(response["message"]["content"])
+    logger.info(f"imageChecker response for {os.path.basename(image_path)}:")
+    logger.info(f"VLM determines that image is clinically significant: {response['message']['content']}")
 
     # The path to the image file, the file size of the image file, the number of tokens it cost to query and receive a
     # response from the VLM are all recorded in the 'ollama_token_costs.txt' file, in case the token cost needs to be
@@ -529,9 +555,10 @@ def imageChecker(image_path):
                 f"Response costed: {response['eval_count']} tokens\n"
                 f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n\n")
 
-    print(f"Query costed: {response['prompt_eval_count']} tokens")
-    print(f"Response costed: {response['eval_count']} tokens")
-    print(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
+    # Log the number of tokens it cost to generate the response.
+    logger.info(f"Query costed: {response['prompt_eval_count']} tokens")
+    logger.info(f"Response costed: {response['eval_count']} tokens")
+    logger.info(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
 
     # True or False response from the VLM.
     return response["message"]["content"]

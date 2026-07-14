@@ -16,11 +16,17 @@ from vlm_functions import *
 from qdrant_functions import qdrantImport
 from qdrant_client import QdrantClient
 from FlagEmbedding import BGEM3FlagModel
+from logger import setup_logging
+import logging
+
+# Setup logging.
+setup_logging()
+logger = logging.getLogger(__name__)
 
 #pdf_path = '/Users/arjun/PycharmProjects/VI_RAG/VI_RAG/tools/Hori et al 2019 PMID 31491741.pdf'
 
-
-print("---Loading model")
+# Log that the embedding model is loading.
+logger.info("Loading BAAI/bge-m3 model.")
 
 # The BGE-M3 embedding model is loaded to embed text into up to 1024 tokens.
 model = BGEM3FlagModel('BAAI/bge-m3') #, use_fp16=True
@@ -51,14 +57,16 @@ for root, dir, files in os.walk(References, topdown=False):
                         pdf_list.append(line.strip())
 
             if pdf_path in pdf_list:
-                print(f"---Skipping entire import of: {pdf_path}")
+                # Log which .pdf file is not going to be imported.
+                logger.info(f"Skipping entire import of: {pdf_path}")
                 continue
 
             # When converting the .pdf file into a markdown file, images in the .pdf file are extracted and stored in
             # a separate directory called 'images'. If this file already exists, it is removed so that it can store
             # images from the .pdf file currently being iterated over.
             if os.path.exists("./images/"):
-                print(f"---Deleting images directory...")
+                # Log that the images directory is being deleted.
+                logger.info(f"The images/ directory exists. Deleting images directory.")
                 shutil.rmtree("./images/")
 
             # When converting the .pdf file into a markdown file, the markdown file is stored in the 'tools' directory.
@@ -66,7 +74,8 @@ for root, dir, files in os.walk(References, topdown=False):
             # markdown file is the only markdown file in the folder.
             for md_file in os.listdir("./"):
                 if md_file.endswith('.md'):
-                    print(f"---Deleting markdown file: {md_file}")
+                    # Log that a markdown file was found and deleted.
+                    logger.info(f"A markdown file was found. Deleting markdown file: {md_file}")
                     os.remove(os.path.join("./" , md_file))
 
             # Retrieve the .pdf filename and use it as the name for the markdown file.
@@ -89,14 +98,16 @@ for root, dir, files in os.walk(References, topdown=False):
                         markdown_list.append(line.strip())
 
             if markdown_name in markdown_list:
-                print(f"---Skipping text import of: {markdown_name}")
+                # Log that text from the corresponding .pdf has already been imported into the vector database.
+                logger.info(f"Text has already been imported into Qdrant DB. Skipping text import of: {markdown_name}")
                 pass
 
             # If the .pdf markdown file has not been imported into the vector database, a markdown file of the .pdf
             # from the current iteration is generated.
             else:
 
-                print(f"---Importing {file}")
+                # Log which .pdf is being prepared for importation into vector database.
+                logger.info(f"Preparing text from {pdf_path} for importation into Qdrant vector database.")
 
                 # The docling_PFD2Text generates a markdown file from the .pdf filepath. The filepath to the markdown
                 # file is returned by the docling_PDF2Text function and assigned to the 'markdown_path' variable.
@@ -108,7 +119,7 @@ for root, dir, files in os.walk(References, topdown=False):
                 # This was done to reduce the cost of tokens sent to Ollama but it did not change the cost very much.
                 # CONSIDER REMOVING THIS STEP AND REMEMBER TO CHANGE THE VLM_TEXTEXTRACTION AND THE
                 # VLM_IMAGEDESCRIPTION INPUT PARAMETERS AND FUNCTIONS.
-                context = vlm_loadContext(markdown_path=markdown_path)
+                #context = vlm_loadContext(markdown_path=markdown_path)
 
                 # Create an empty variable to store the list of python dictionaries in JSON format produced by the VLM.
                 ext_json_list = None
@@ -120,13 +131,16 @@ for root, dir, files in os.walk(References, topdown=False):
                     if ext_json_list:
                         continue
 
+                    # Log the attempt number to retrieve a response from the vlm using vlm_TextExtraction.
+                    logger.info(f"Querying VLM using vlm_TextExtraction() function. Attempt: {attempt + 1}")
+
                     # Sometimes the VLM does not produce a response that can be loaded into Python without raising
                     # an exception. Therefore, a simple try and except statement is used to retry parsing a list of
                     # each section from the .pdf into ext_json_list.
                     try:
                         # The vlm_TextExtraction function is used to parse each section in the .pdf file into a JSON
                         # object along with accompanying meta-data. Each section if then store in a list.
-                        ext_response = vlm_TextExtraction(context=context, markdown_path=markdown_path)
+                        ext_response = vlm_TextExtraction(markdown_path=markdown_path)
                         # The list is then loaded into python.
                         ext_json_list = json.loads(ext_response)
 
@@ -143,9 +157,22 @@ for root, dir, files in os.walk(References, topdown=False):
                 # If after 10 attempts, 'ext_json_list' variable is None or the VLM returns an empty list, the markdown
                 # file is not imported into the vector database.
                 if ext_json_list is None:
+                    # Log that a response was not received from vlm_TextExtraction.
+                    logger.warning(
+                        f"vlm_TextExtraction() did not produce a response for this .pdf: {pdf_path}"
+                    )
                     continue
                 elif len(ext_json_list) == 0:
+                    # Log that an empty response was received from vlm_TextExtraction.
+                    logger.warning(
+                        f"vlm_TextExtraction() returned an empty response for this .pdf: {pdf_path}"
+                    )
                     continue
+
+                # Log the response from vlm_TextExtraction.
+                logger.info(
+                    f"Successfully received response from vlm_TextExtraction:\n{json.dumps(ext_json_list, indent=4)}"
+                )
 
                 # Iterate through each python dictionary in the 'ext_json_list' list.
                 for resp_dict in ext_json_list:
@@ -153,7 +180,7 @@ for root, dir, files in os.walk(References, topdown=False):
                     # Iterate over each key and value in the dictionary.
                     for key, value in resp_dict.items():
 
-                        # If any value is None, assign an empty array  or string or 0 value to the key so the entire
+                        # If any value is None, assign an empty array or string or 0 value to the key so the entire
                         # dictionary can still be imported into the vector database.
                         if value is None:
                             if key in ["authors", "genes_mentioned", "variants"]:
@@ -173,6 +200,9 @@ for root, dir, files in os.walk(References, topdown=False):
                                     if v_value is None:
                                         variant[v_key] = ""
 
+                # Log that NoneType values have been removed from the VLM response.
+                logger.info(f"NoneType values removed from vlm_TextExtraction response.")
+
                 # Iterate through each python dictionary in the 'ext_json_list' list.
                 for resp_dict in ext_json_list:
 
@@ -184,7 +214,10 @@ for root, dir, files in os.walk(References, topdown=False):
                     # Iterate over each chunk in order along with its index number (i).
                     for i, chunk in enumerate(chunks):
 
-                        #Create a dictionary for each chunk that will be imported into the Qdrant vector database.
+                        # Log the chunk that is due to be described.
+                        logger.info(f"Chunk to be described: {chunk}")
+
+                        # Create a dictionary for each chunk that will be imported into the Qdrant vector database.
                         qdrant_dict = {}
 
                         # Iterate through each key and value in the python dictionary that is currently being processed.
@@ -225,11 +258,14 @@ for root, dir, files in os.walk(References, topdown=False):
                             if description_json and "description" in description_json:
                                 break
 
+                            # Log the attempt for generating a description of the chunk.
+                            logger.info(f"Describing chunk using vlm_TextDescription(). Attempt: {attempt + 1}")
+
                             # Sometimes the VLM does not produce a response that can be loaded into Python without
                             # raising an exception. Therefore, a simple try and except statement is used to retry
                             # parsing a list of each section from the .pdf into ext_json_list.
                             try:
-                                description_resp = vlm_TextDescription(input_text=chunk, context=context, markdown_path=markdown_path)
+                                description_resp = vlm_TextDescription(input_text=chunk, markdown_path=markdown_path)
                                 description_json = json.loads(description_resp)
 
                                 # If the description returned by the VLM is a NoneType value or the description key
@@ -246,7 +282,17 @@ for root, dir, files in os.walk(References, topdown=False):
                         # If the description returned by the VLM is a NoneType value or the description key (and value)
                         # are missing, insert a 'description' key with a "null" value.
                         if description_json is None or "description" not in description_json:
+
+                            # Log that a description could not be generated.
+                            logger.warning(
+                                f"Description could not be generated for {pdf_path}; "
+                                f"Section: {resp_dict['section_header']};"
+                                f"Subsection: {resp_dict['subsection_header']};"
+                                f"Sub-subsection: {resp_dict['sub_subsection_header']};"
+                                f"Chunk: {i}.")
+
                             qdrant_dict["description"] = "null"
+
                         # Otherwise, insert the description from the VLM response into the dictionary due to be
                         # imported into the vector database.
                         else:
@@ -400,7 +446,7 @@ for root, dir, files in os.walk(References, topdown=False):
                     # much.
                     # CONSIDER REMOVING THIS STEP AND REMEMBER TO CHANGE THE VLM_TEXTEXTRACTION AND THE
                     # VLM_IMAGEDESCRIPTION INPUT PARAMETERS AND FUNCTIONS.
-                    context = vlm_loadContext(markdown_path=markdown_path)
+                    #context = vlm_loadContext(markdown_path=markdown_path)
 
                     # Get the absolute path to the image being processed in the current iteration (current image).
                     image_path = os.path.abspath(os.path.join(images, image))
@@ -425,7 +471,7 @@ for root, dir, files in os.walk(References, topdown=False):
                     for attempt in range(5):
                         # The vlm_ImageDescription function produces a JSON response with a description of the image
                         # and additional metadate that will help to index the image in the vector database.
-                        response = vlm_ImageDescription(image_path=image_path, context=context)
+                        response = vlm_ImageDescription(image_path=image_path, markdown_path=markdown_path)
 
                         # Sometimes the VLM does not produce a response that can be loaded into Python without
                         # raising an exception. Therefore, a simple try and except statement is used to retry
