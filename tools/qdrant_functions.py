@@ -190,9 +190,7 @@ def qdrantImport(chunk_dict, model):
     logger.info(f"Sparse values length: {len(values)}")
     logger.info(f"Colbert vector length: {len(colbert[0])}")
 
-
-    print("---Successfully imported.")
-
+    logger.info("Successfully imported chunk.")
 
 #for chunk_dict in [a, b, c, d, e, f, g, h, i, j, k, l, m, n]:
     #qdrantImport(chunk_dict)

@@ -1,3 +1,7 @@
+"""
+Functions in this script are used to eextract text, figures, and tables from .PDF files.
+"""
+
 from docling_core.types.doc import ImageRefMode, PictureItem, TableItem
 from docling.datamodel.base_models import InputFormat
 from docling.document_converter import DocumentConverter, PdfFormatOption
@@ -9,10 +13,23 @@ from docling.datamodel.pipeline_options import (
 import os
 import re
 from pathlib import Path
+from logger import setup_logging
+import logging
+
+# Setup logging.
+setup_logging()
+logger = logging.getLogger(__name__)
 
 def docling_PDF2Text(filepath:str):
+    """
+    This function is used to extract text from PDF files and store it in a markdown file. This includes text from the
+    main body of PDF file, captions/legends and text held in tables.
 
-    print("---Extracting text from PDF---")
+    :params: filepath: The filepath to the PDF file.
+    return os.path.abspath(markdown_filepath): The absolute filepath to the markdown file where the text is stored.
+    """
+
+    logger.info(f"Extracting text from PDF: {os.path.basename(filepath)}.")
 
     input_pdf = filepath
     base_name = os.path.splitext(os.path.basename(input_pdf))[0]
@@ -56,14 +73,22 @@ def docling_PDF2Text(filepath:str):
             if i not in delete_list:
                 f.write(f"##{section}")
 
-    print("---markdown created successfully---")
+    logger.info("Successfully created Markdown file.")
 
     return os.path.abspath(markdown_filepath)
 
 
-def docling_FigTableExport(filepath:str):
+def docling_ImageExport(filepath:str):
+    """
+    This function is used to extract images from PDF files and store them in the images/ directory. This includes
+    figures, and tables from the main body of the PDF file, as well as logos and miscellaneous images that be included
+    in the PDF file.
 
-    print("---Extracting Figs and Tables---")
+    :params: filepath: The filepath to the PDF file.
+    :return: os.path.abspath(images_dir): The absolute filepath to the images/ directory where the images are stored.
+    """
+
+    logger.info(f"Extracting Figures and Tables from PDF: {os.path.basename(filepath)}")
 
     input_pdf = filepath
 
@@ -116,7 +141,7 @@ def docling_FigTableExport(filepath:str):
     # md_filename = Path(images_dir) / f"{images_name}-with-image-refs.md"
     # conv_res.document.save_as_markdown(md_filename, image_mode=ImageRefMode.REFERENCED)
 
-    print("---docling complete---")
+    logger.info("Docling complete.")
 
     return os.path.abspath(images_dir)
 

@@ -391,9 +391,9 @@ for root, dir, files in os.walk(References, topdown=False):
                 with open("markdown_files.txt", "a") as f:
                     f.write(f"{markdown_name}\n")
 
-            # docling_FigTableExport function is used to extract images from the .pdf file and return the filepath to
+            # docling_ImageExport function is used to extract images from the .pdf file and return the filepath to
             # the 'images' directory where they are stored.
-            images = docling_FigTableExport(pdf_path)
+            images = docling_ImageExport(pdf_path)
 
             # Iterate over each image extracted from the .pdf.
             for image in os.listdir(images):
