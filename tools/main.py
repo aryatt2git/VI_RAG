@@ -296,6 +296,8 @@ for root, dir, files in os.walk(References, topdown=False):
                         # Otherwise, insert the description from the VLM response into the dictionary due to be
                         # imported into the vector database.
                         else:
+                            #Log the description that is going to be added to the respective dictionary.
+                            logger.info(f"Description added to dictionary: {description_json["description"]}")
                             qdrant_dict["description"] = description_json["description"]
 
                         # Create a list of genes mentioned in the chunk of text, to support accurate indexing in the
@@ -305,6 +307,14 @@ for root, dir, files in os.walk(References, topdown=False):
                             for gene in qdrant_dict['genes_mentioned']:
                                 if gene in chunk:
                                     chunk_genes.append(gene)
+
+                            # Log which genes were found in the chunk.
+                            logger.info(f"Found {len(chunk_genes)} genes mentioned: {chunk_genes}.")
+
+                        else:
+                            # Log that no genes were found in the chunk.
+                            logger.info(f"0 genes mentioned in chunk: {chunk_genes}.")
+
                         # Add the list of genes mentioned in the chunk to the Qdrant dictionary due to be imported into
                         # the vector database.
                         qdrant_dict['genes_mentioned'] = chunk_genes
@@ -353,8 +363,11 @@ for root, dir, files in os.walk(References, topdown=False):
                         # Qdrant dictionary due to be imported into the vector database.
                         qdrant_dict['variant_count'] = len(qdrant_dict['variants'])
 
+                        # Log the number of variants that were found in the chunk.
+                        logger.info(f"{qdrant_dict['variant_count']} variants found in chunk.")
+
                         # Log the Qdrant dictionary due to be imported into the vector database.
-                        print(json.dumps(qdrant_dict, indent=4))
+                        logger.info(f"Chunk to be imported into Qdrant database:\n{json.dumps(qdrant_dict, indent=4)}")
 
                         # Open the 'chunk_sizes.txt' file to store information about the chunk about to be imported
                         # into the vector database.
@@ -365,13 +378,13 @@ for root, dir, files in os.walk(References, topdown=False):
                                     f"Dict length: {len(str(qdrant_dict))}\n")
 
                         # Log the markdown filename being imported into the Qdrant database.
-                        print(f"---Loading {markdown_name} into Qdrant database.")
+                        logger.info(f"Loading chunk dictionaries from {markdown_name} into Qdrant database.")
 
                         # Import the 'qdrant_dict' into the Qdrant vector database.
                         qdrantImport(chunk_dict=qdrant_dict, model=model)
 
                         # Log that the markdown file was successfully imported into the vector database.
-                        print(f"---{markdown_name} successfully loaded into Qdrant database")
+                        logger.info(f"Chunk dictionaries from {markdown_name} successfully imported into Qdrant database")
 
                 # Add the markdown filename to 'markdown_files.txt', incase the same set of .pdf files are imported
                 # into the vector database and markdown files that have already been imported are skipped.
@@ -398,7 +411,7 @@ for root, dir, files in os.walk(References, topdown=False):
 
                     if image in images_list:
                         # Display which image has been skipped to stdout.
-                        print(f"Skipping image import of: {image}")
+                        logger.info(f"Image already exists in Qdrant DB. Skipping image import of: {image}")
                         continue
 
                 # Specify images that end in the expected file extension (although only images extracted rom the .pdf
@@ -420,22 +433,26 @@ for root, dir, files in os.walk(References, topdown=False):
                     check_resp = imageChecker(os.path.join(images, image))
 
                     # If the VLM returns False, the image is skipped and added to 'image_files.txt' so that tokens
-                    # aren't spent on checking the image again.
+                    # aren't spent on checking the image again in the future.
                     if check_resp == "False":
-                        print(f"---Skipping image: {image}")
+                        logger.info(f"Image is not clinically significant. Skipping image: {image}")
                         with open("image_files.txt", "a") as f:
                             f.write(f"{image}\n")
                         continue
 
-                    # Display that the image is being prepared for upload in to the vector database.
-                    print(f"---Loading: {image}")
+                    # Log the image being imported into Qdrant DB.
+                    logger.info(f"{image} is being prepared for importation into Qdrant vector database.")
 
                     # Check if the markdown file exists. If it does not, generate it and assign its filepath to the
                     # 'markdown_path' variable.
                     if os.path.exists(markdown):
                         markdown_path = os.path.abspath(os.path.join(images, '..', f'{filename}.md'))
                     else:
+                        # Log that the markdown file is being recreated.
+                        logger.info(f"Creating markdown file to inform image description.")
                         markdown_path = docling_PDF2Text(pdf_path)
+                        # Log that markdown was successfully created.
+                        logger.info(f"Successfully created markdown file: {markdown_path}")
 
                     # Log the path to the markdown path?
                     #print(markdown_path)
@@ -450,7 +467,7 @@ for root, dir, files in os.walk(References, topdown=False):
 
                     # Get the absolute path to the image being processed in the current iteration (current image).
                     image_path = os.path.abspath(os.path.join(images, image))
-                    print(f"Processing: {image_path}")
+                    logger.info(f"Processing: {image_path}")
 
                     # The code below this line will makes 5 attempts to extract as many variants as possible from the
                     # current image. Testing showed that the VLM did not extract the same information from a figure,
@@ -469,6 +486,10 @@ for root, dir, files in os.walk(References, topdown=False):
 
                     # Make 5 attempts to retrieve the 'best' response.
                     for attempt in range(5):
+
+                        # Log which attempt is being made to process the image with vlm_ImageDescription()
+                        logger.info(f"Image being processed using vlm_ImageDescription(). Attempt: {attempt}")
+
                         # The vlm_ImageDescription function produces a JSON response with a description of the image
                         # and additional metadate that will help to index the image in the vector database.
                         response = vlm_ImageDescription(image_path=image_path, markdown_path=markdown_path)
@@ -479,13 +500,19 @@ for root, dir, files in os.walk(References, topdown=False):
                         try:
                             resp_dict = json.loads(response)
 
-                        # If an exception occurs, move on to the next attempt.
-                        except:
+                        # If an exception occurs, log the exception and move on to the next attempt.
+                        except Exception as e:
+                            logger.warning(f"Exception encountered: {e}", exc_info=True)
+                            logger.info(f"Trying again...")
                             continue
 
                         # If the JSON returned by the VLM was not loaded into a python dictionary, move on to the next
                         # attempt.
                         if not resp_dict:
+                            # Log that vlm_ImageDescription() failed to return a valid response.
+                            logger.warning(
+                                f"vlm_ImageDescription() did not return a response for {image}. Trying again..."
+                            )
                             continue
 
                         # If the variant_count provided by the VLM is NoneType or "null", assign the integer 0 to the
@@ -496,7 +523,7 @@ for root, dir, files in os.walk(References, topdown=False):
                             resp_dict["variant_count"] = 0
 
                         # Log the variant count.
-                        print(f"count = {resp_dict['variant_count']}")
+                        logger.info(f"In attempt #{attempt}, {resp_dict['variant_count']} variants were found in {image}.")
 
                         # Assign the variant count to the variable 'count'.
                         count = int(resp_dict["variant_count"])
@@ -546,8 +573,13 @@ for root, dir, files in os.walk(References, topdown=False):
                                     if value is None:
                                         variant[key] = ""
 
+                    # Log that NoneType values have been removed from image dictionary.
+                    logger.info(f"NoneType values removed from {image} image dictionary.")
+
                     # Log the image dictionary generated by the VLM.
-                    print(json.dumps(image_dict, indent=4))
+                    logger.info(
+                        f"vlm_ImageDescription() produced the following dictionary:\n{json.dumps(image_dict, indent=4)}"
+                    )
 
                     # Create the 'chunks' variable to store each chunk from the image dictionary.
                     chunks = None
@@ -580,8 +612,14 @@ for root, dir, files in os.walk(References, topdown=False):
                             f"Description: {image_dict['description']}"
                         )
 
+                    # Log the number of chunks to be imported into vector DB.
+                    logger.info(f"{len(chunks)} chunks generated by image.")
+
                     # Iterate through each chunk in the 'chunks' variable along with an index.
                     for i, chunk in enumerate(chunks):
+
+                        # Log the chunk that is due to be described.
+                        logger.info(f"Preparing image chunk for importation into Qdrant DB: {chunk}")
 
                         # Create and empty dictionary to store information about the current chunk in the iteratioh.
                         qdrant_dict = {}
@@ -612,6 +650,13 @@ for root, dir, files in os.walk(References, topdown=False):
                                 for gene in qdrant_dict['genes_mentioned']:
                                     if gene in chunk:
                                         chunk_genes.append(gene)
+
+                                # Log which genes were found in the chunk.
+                                logger.info(f"Found {len(chunk_genes)} genes in chunk: {chunk_genes}.")
+
+                            else:
+                                # Log that no genes were found in the chunk.
+                                logger.info(f"0 genes mentioned in chunk: {chunk_genes}.")
 
                             # Replace the list of every gene that appears in the table with a list of genes that only
                             # appear in the chunk.
@@ -664,6 +709,9 @@ for root, dir, files in os.walk(References, topdown=False):
                             # subsection to the number of variants that appear in the chunk.
                             qdrant_dict['variant_count'] = len(qdrant_dict['variants'])
 
+                            # Log the number of variants that were found in the chunk.
+                            logger.info(f"{qdrant_dict['variant_count']} variants found in chunk.")
+
                             # The filepath to the image is also added to qdrant_dict as this might provide extra
                             # metadata that could help with data retrieval.
                             # CONSIDER REMOVING THIS AS THIS MIGHT ALSO PERMIT DUPLICATE PAPERS TO BE ENTERED INTO THE
@@ -672,8 +720,8 @@ for root, dir, files in os.walk(References, topdown=False):
                             # ABSOLUTE PATHS FOR THE MARKDOWN FILE).
                             qdrant_dict["path"] = image_path
 
-                        # Log the dictionary of the image that is due to be imported into the Qdrant vector database.
-                        print(json.dumps(qdrant_dict, indent=4))
+                        # Log the Qdrant dictionary due to be imported into the vector database.
+                        logger.info(f"Chunk to be imported into Qdrant database:\n{json.dumps(qdrant_dict, indent=4)}")
 
                         # Open the 'chunk_sizes.txt' file to store information about the chunk about to be imported
                         # into the vector database.
@@ -684,13 +732,13 @@ for root, dir, files in os.walk(References, topdown=False):
                                     f"Dict length: {len(str(qdrant_dict))}\n")
 
                         # Log which image is about to be imported into the vector database.
-                        print(f"---Loading {image} into Qdrant database.\n")
+                        logger.info(f"Importing chunks from {image} into Qdrant database.")
 
                         # Import the 'qdrant_dict' into the Qdrant vector database.
                         qdrantImport(chunk_dict=qdrant_dict, model=model)
 
                         # Log that the image was successfully imported into the vector database.
-                        print(f"---{image} successfully loaded into Qdrant database")
+                        logger.info(f"Successfully imported chunks from {image} into Qdrant database.")
 
                     # Add the image's filename to 'image_files.txt', so that images that have already been imported are
                     # skipped.
@@ -704,3 +752,6 @@ for root, dir, files in os.walk(References, topdown=False):
             # Add the .pdf filename to 'pdf_paths.txt', so that .pdf files that have already been imported are skipped.
             with open("pdf_paths.txt", "a") as f:
                 f.write(f"{pdf_path}\n")
+
+            # Log that the .pdf has been successfully imported.
+            logger.info(f"PDF successfully imported into Qdrant DB: {pdf_path}")
