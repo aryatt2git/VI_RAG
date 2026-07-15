@@ -8,6 +8,12 @@ from qdrant_client.models import Distance, VectorParams, SparseVectorParams, Poi
 from FlagEmbedding import BGEM3FlagModel
 from id_generator import generateTextID, generateImageID
 import json
+from logger import setup_logging
+import logging
+
+# Setup logging.
+setup_logging()
+logger = logging.getLogger(__name__)
 
 def qdrantImport(chunk_dict, model):
     """
@@ -88,7 +94,8 @@ def qdrantImport(chunk_dict, model):
             }
         )
 
-        print("---FH_PDFs vector DB created.")
+        # Log that the FH_PDFs vector database was created.
+        logger.info("FH_PDFs vector DB created in Qdrant.")
 
     # Return dense, sparse and ColBERT embeddings of the text assigned to the 'chunk' key, in the Python dictionary.
     encoded = model.encode(chunk_dict["chunk"], return_dense=True, return_sparse=True, return_colbert_vecs=True)
@@ -96,8 +103,14 @@ def qdrantImport(chunk_dict, model):
     # Assign dense vectors to the 'dense' variable.
     dense = encoded['dense_vecs'].astype("float32").tolist()
 
+    # Log that Dense vectors were generated.
+    logger.info("Generated Dense vectors.")
+
     # Assign ColBERT vectors to the 'colbert' variable.
     colbert = encoded['colbert_vecs'].astype("float32").tolist()
+
+    # Log that ColBERT vectors were generated.
+    logger.info("Generated ColBERT vectors.")
 
     # Each token is stored in the 'indices' list.
     indices = []
@@ -111,6 +124,9 @@ def qdrantImport(chunk_dict, model):
         indices.append(int(key))
         values.append(float(value))
 
+    # Log that Sparse vectors were generated.
+    logger.info("Generated Sparse vectors.")
+
     # The generateImageID and generateTextID functions are used to create unique IDs for each point (chunk of data) in
     # the vector database (collection), depending on whether the chunk represents text or an image, such as a figure
     # or table.
@@ -119,7 +135,7 @@ def qdrantImport(chunk_dict, model):
     else:
         id = generateTextID(chunk_dict)
 
-    print("---Loading points into vector DB...")
+    logger.info("Loading vectors into vector DB...")
 
     # Meta-data and embeddings loaded into Qdrant vector database as 'points'.
     # ** https://qdrant.tech/documentation/manage-data/points/ **
@@ -150,28 +166,30 @@ def qdrantImport(chunk_dict, model):
     # Close the connection to the database.
     client.close()
 
+    # Log that dense vectors were generated.
+    logger.info("Vectors successfully uploaded into Qdrant DB.")
+
     # Record which information was uploaded into the database for logging purposes.
-    with open("chunk_sizes.txt", "a") as f:
-        if "type" in chunk_dict:
-            insert = (
-                f"Type: {chunk_dict['type']}\n"
-                f"Figure/Table No.: {chunk_dict['figure_table_no']}\n"
-            )
-        else:
-            insert = (
-                f"Section: {chunk_dict['section_header']}\n"
-                f"Subsection: {chunk_dict['subsection_header']}\n"
-            )
-        f.write(
-            f"Path: {chunk_dict['path']}\n"
-            f"Paper: {chunk_dict['title']}\n"
-            f"{insert}"
-            f"Chunk No.: {chunk_dict['chunk_idx']}\n"
-            f"Dense vector length: {len(dense)}\n"
-            f"Sparse indices length: {len(indices)}\n"
-            f"Sparse values length: {len(values)}\n"
-            f"Colbert vector length: {len(colbert[0])}\n\n"
+    if "type" in chunk_dict:
+        insert = (
+            f"Type: {chunk_dict['type']}\n"
+            f"Figure/Table No.: {chunk_dict['figure_table_no']}\n"
         )
+    else:
+        insert = (
+            f"Section: {chunk_dict['section_header']}\n"
+            f"Subsection: {chunk_dict['subsection_header']}\n"
+        )
+
+    logger.info(f"Path: {chunk_dict['path']}")
+    logger.info(f"Paper: {chunk_dict['title']}")
+    logger.info(f"{insert}")
+    logger.info(f"Chunk No.: {chunk_dict['chunk_idx']}")
+    logger.info(f"Dense vector length: {len(dense)}")
+    logger.info(f"Sparse indices length: {len(indices)}")
+    logger.info(f"Sparse values length: {len(values)}")
+    logger.info(f"Colbert vector length: {len(colbert[0])}")
+
 
     print("---Successfully imported.")
 
