@@ -2,10 +2,14 @@ from ollama import chat
 import os
 from logger import setup_logging
 import logging
+import datetime
 
 # Setup logging.
 setup_logging()
 logger = logging.getLogger(__name__)
+
+#model="kimi-k3:cloud"
+model = "gemma4:31b-cloud"
 
 def vlm_loadContext(markdown_path):
     """
@@ -40,11 +44,9 @@ def vlm_loadContext(markdown_path):
     # The chat() function sends the above message to a specified model with additional parameters. The response is
     # returned as a list.
     response = chat(
-        #model = "qwen2.5:7b",
-        model = "qwen3.5:397b-cloud",
+        model = model,
         messages = messages,
-        options = {"num_ctx": 32768},
-        keep_alive = "60m"
+        options = {"num_ctx": 32768}
     )
 
     # Log that the .pdf.markdown is being loaded to memory.
@@ -56,7 +58,9 @@ def vlm_loadContext(markdown_path):
     # receive a response from the VLM are all recorded in the 'ollama_token_costs.txt' file, in case the token cost
     # needs to be evaluated.
     with open("ollama_token_costs.txt", 'a') as f:
-        f.write(f"vlm_loadContext: {markdown_path}\n"
+        f.write(f"{str(datetime.datetime.now())}\n"
+                f"Model: {model}\n"
+                f"vlm_loadContext: {markdown_path}\n"
                 f"Query costed: {response['prompt_eval_count']} tokens\n"
                 f"Response costed: {response['eval_count']} tokens\n"
                 f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n")
@@ -119,7 +123,8 @@ def vlm_TextExtraction(context=None, markdown_path=None):
         '   "hom_carriers": "", '
         '   "affected_carriers": "", '
         '   "unaffected_carriers": "", '
-        '   "number_of_meioses": ""}]}'
+        '   "number_of_meioses": "", '
+        '   "n_mentions": "", }]}'
     )
 
     # The context (text from the .pdf in markdown format), the VLM_query and instructions of how text should be
@@ -136,8 +141,8 @@ def vlm_TextExtraction(context=None, markdown_path=None):
     - Use all of the content from the markdown file I sent to you earlier for context.
     - Only use information from the markdown file for context.
     - Split the text in the markdown file into sections, subsections, and subsections of subsections, if necessary.
-    - Remove all images/table/figure legends/captions/annotations from the markdown file content.
-    - Remove all images, figures and and tables from the markdown file content.
+    - Do not include any or content from image legends or image captions or image annotations or table legends or table captions or table annotations or figure legends or figure captions or figure annotations from the markdown file content in the output.
+    - Do not include any or content from images or figures or tables from the markdown file content in the output.
     - Remove all in-line references to other articles.
     - Match lines that end abruptly to other lines in the same section that start abruptly and check that they make sense.
     - If you see ' &gt; ' in the text, replace it with '>'. Make sure the whitespaces either side of &gt; are removed.
@@ -200,7 +205,7 @@ def vlm_TextExtraction(context=None, markdown_path=None):
     # The chat() function sends the above message to a specified model with additional parameters. The response is
     # returned in JSON.
     response = chat(
-        model = "qwen3.5:397b-cloud",
+        model = model,
         messages = messages,
         format="json",
         options={
@@ -210,19 +215,19 @@ def vlm_TextExtraction(context=None, markdown_path=None):
             'num_predict': 25000,   # Give the model plenty of room to write a long answer
             'seed': 42,             # This combines with temperature to produce the EXACT same answer every single time.
             'num_ctx': 32768,       # Add this to handle the image + markdown
-        },
-        keep_alive = 0              # This forces the model to restart for the next query.
+        }
     )
 
     # Log the VLM response to keep a record of what was returned by the vlm_TextExtraction function.
-    logger.info(f"vlm_TextExtraction response for {os.path.basename(markdown_path)}:")
-    logger.info(response["message"]["content"])
+    logger.info(f"vlm_TextExtraction response for {os.path.basename(markdown_path)}:\n{response['message']['content']}")
 
     # The path to the markdown file, the file size of the markdown file, the number of tokens it cost to query and
     # receive a response from the VLM are all recorded in the 'ollama_token_costs.txt' file, in case the token cost
     # needs to be evaluated.
     with open("ollama_token_costs.txt", 'a') as f:
-        f.write(f"vlm_TextExtraction"
+        f.write(f"{str(datetime.datetime.now())}\n"
+                f"Model: {model}\n"
+                f"vlm_TextExtraction\n"
                 f"Path to markdown file processed by VLM: {markdown_path}\n"
                 f"Size of markdown file: {os.path.getsize(markdown_path)} bytes\n"
                 f"Query costed: {response['prompt_eval_count']} tokens\n"
@@ -312,7 +317,7 @@ def vlm_TextDescription(input_text, context=None, markdown_path=None):
     # The chat() function sends the above message to a specified model with additional parameters. The response is
     # returned in JSON.
     response = chat(
-        model = "qwen3.5:397b-cloud",
+        model = model,
         messages = messages,
         format="json",
         options={
@@ -322,8 +327,7 @@ def vlm_TextDescription(input_text, context=None, markdown_path=None):
             'num_predict': 25000,   # Give the model plenty of room to write a long answer
             'seed': 42,             # This combines with temperature to produce the EXACT same answer every single time.
             'num_ctx': 32768,       # Add this to handle the image + markdown
-        },
-        keep_alive = 0              # This forces the model to restart for the next query.
+        }
     )
 
     # Log the VLM response to keep a record of what was returned by the vlm_TextExtraction function.
@@ -334,7 +338,9 @@ def vlm_TextDescription(input_text, context=None, markdown_path=None):
     # number of tokens it cost to query and receive a response from the VLM are all recorded in the
     # 'ollama_token_costs.txt' file, in case the token cost needs to be evaluated.
     with open("ollama_token_costs.txt", 'a') as f:
-        f.write(f"vlm_TextExtraction"
+        f.write(f"{str(datetime.datetime.now())}\n"
+                f"Model: {model}\n"
+                f"vlm_TextExtraction\n"
                 f"Path to markdown file processed by VLM: {markdown_path}\n"
                 f"Size of markdown file: {os.path.getsize(markdown_path)} bytes\n"
                 f"text={input_text}\n"
@@ -382,7 +388,7 @@ def vlm_ImageDescription(image_path, context=None, markdown_path=None):
         'Process the image using the markdown file as context in accordance with the instructions below. Analyse the '
         'image as comprehensively as possible. Do not omit any clinically relevant information. '
         'Structure your output into the following JSON format:'
-        '{"title": "", "authors": [], "type": "", "figure_table_no": "", "sub_figure_table_no": "", "caption": "", "description": "", "table": "", "genes_mentioned": [], "variant_count": "", "variants": [{"gene": "", "genomic_variant": "", "transcript_variant": "", "exon": "", "protein_variant": "", "protein_domain": "", "clinical_information": "", "clinical_significance": "", "evidence": "", "frequency": "", "het_carriers": "", "hom_carriers": "", "affected_carriers": "", "unaffected_carriers": "", "number_of_meioses": ""}]}'
+        '{"title": "", "authors": [], "type": "", "figure_table_no": "", "sub_figure_table_no": "", "caption": "", "description": "", "table": "", "genes_mentioned": [], "variant_count": "", "variants": [{"gene": "", "genomic_variant": "", "transcript_variant": "", "exon": "", "protein_variant": "", "protein_domain": "", "clinical_information": "", "clinical_significance": "", "evidence": "", "frequency": "", "het_carriers": "", "hom_carriers": "", "affected_carriers": "", "unaffected_carriers": "", "number_of_meioses": "", "n_mentions": ""}]}'
     )
 
     # The context (text from the .pdf in markdown format), the VLM_query and instructions of how the image should be
@@ -462,7 +468,7 @@ def vlm_ImageDescription(image_path, context=None, markdown_path=None):
     # The chat() function sends the above message to a specified model with additional parameters. The response is
     # returned in JSON.
     response = chat(
-        model = "qwen3.5:397b-cloud",
+        model = model,
         messages = messages,
         format="json",
         options={
@@ -472,8 +478,7 @@ def vlm_ImageDescription(image_path, context=None, markdown_path=None):
             'num_predict': 25000,   # Give the model plenty of room to write a long answer
             'seed': 42,             # This combines with temperature to produce the EXACT same answer every single time.
             'num_ctx': 32768,       # Add this to handle the image + markdown
-        },
-        keep_alive="20m"            # This forces the model to restart for the next query.
+        }
     )
 
     # Log the VLM response to keep a record of what was returned by the vlm_ImageDescription function.
@@ -484,7 +489,9 @@ def vlm_ImageDescription(image_path, context=None, markdown_path=None):
     # the image file, the number of tokens it cost to query and receive a response from the VLM are all recorded in the
     # 'ollama_token_costs.txt' file, in case the token cost needs to be evaluated.
     with open("ollama_token_costs.txt", 'a') as f:
-        f.write(f"vlm_ImageDescription"
+        f.write(f"{str(datetime.datetime.now())}\n"
+                f"Model: {model}\n"
+                f"vlm_ImageDescription\n"
                 f"Path to markdown file processed by VLM: {markdown_path}\n"
                 f"Size of markdown file: {os.path.getsize(markdown_path)} bytes\n"
                 f"Path to image: {image_path}\n"
@@ -535,8 +542,7 @@ def imageChecker(image_path):
 
     # The chat() function sends the above message to a specified model.
     response = chat(
-        # model="qwen2.5:7b",
-        model="qwen3.5:397b-cloud",
+        model=model,
         messages=messages
     )
 
@@ -548,7 +554,9 @@ def imageChecker(image_path):
     # response from the VLM are all recorded in the 'ollama_token_costs.txt' file, in case the token cost needs to be
     # evaluated.
     with open("ollama_token_costs.txt", 'a') as f:
-        f.write(f"vlm_ImageChecker"
+        f.write(f"{str(datetime.datetime.now())}\n"
+                f"Model: {model}\n"
+                f"vlm_ImageChecker\n"
                 f"Path to image: {image_path}\n"
                 f"Size of image: {os.path.getsize(image_path)} bytes\n"
                 f"Query costed: {response['prompt_eval_count']} tokens\n"

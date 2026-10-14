@@ -8,7 +8,7 @@ import os
 # --------------------------------------------------
 # STEP 1: Define default log file (hidden, home directory)
 # --------------------------------------------------
-curr_dir = os.path.abspath("__file__")
+curr_dir = os.path.abspath(".")
 LOG_FILE = os.path.join(curr_dir, "logs", "importation.log")
 
 # --------------------------------------------------
@@ -97,7 +97,7 @@ LOGGING_CONFIG = {
             #   .log   → becomes .log.1
             #   new empty .log is created
             #
-            "backupCount": 5,
+            "backupCount": 10,
 
             # Optional: ensures file opens safely even if reused
             "encoding": "utf-8",

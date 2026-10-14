@@ -40,7 +40,8 @@ References = '/Users/arjun/PycharmProjects/VI_RAG/VI_RAG/tools/References/'
 for root, dir, files in os.walk(References, topdown=False):
     for file in files:
         # Specify only .pdf files.
-        if file.endswith('.pdf'):
+        #if file.endswith('.pdf'):
+        if file.endswith('Meshkov et al  2021 PMID 33418990.pdf'):
 
             # Get the path to the file currently being iterated over.
             pdf_path = os.path.join(os.path.abspath(root), file)
@@ -127,9 +128,9 @@ for root, dir, files in os.walk(References, topdown=False):
                 # Make 10 attempts to retrieve a response from the VLM until a response has been retrieved.
                 for attempt in range(10):
 
-                    # If ext_json_list has been populated, iterate out of the loop.
+                    # If ext_json_list has been populated, break the loop.
                     if ext_json_list:
-                        continue
+                        break
 
                     # Log the attempt number to retrieve a response from the vlm using vlm_TextExtraction.
                     logger.info(f"Querying VLM using vlm_TextExtraction() function. Attempt: {attempt + 1}")
@@ -297,7 +298,7 @@ for root, dir, files in os.walk(References, topdown=False):
                         # imported into the vector database.
                         else:
                             #Log the description that is going to be added to the respective dictionary.
-                            logger.info(f"Description added to dictionary: {description_json["description"]}")
+                            logger.info(f"Description added to dictionary: {description_json['description']}")
                             qdrant_dict["description"] = description_json["description"]
 
                         # Create a list of genes mentioned in the chunk of text, to support accurate indexing in the

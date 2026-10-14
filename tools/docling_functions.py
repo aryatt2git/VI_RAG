@@ -1,5 +1,5 @@
 """
-Functions in this script are used to eextract text, figures, and tables from .PDF files.
+Functions in this script are used to extract text, figures, and tables from .PDF files.
 """
 
 from docling_core.types.doc import ImageRefMode, PictureItem, TableItem

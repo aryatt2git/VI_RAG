@@ -10,10 +10,11 @@ tools/*.md
 tools/*.txt
 tools/References
 tools/vector_DB
-qwen2_5-7b/
+no_longer_needed/qwen2_5-7b/
 tools/weaviate_test.py
 tools/Qdrant_FH_DB/
 tools/qdrant_storage/
+tools/logs/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
