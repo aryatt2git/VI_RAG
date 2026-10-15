@@ -97,7 +97,7 @@ LOGGING_CONFIG = {
             #   .log   → becomes .log.1
             #   new empty .log is created
             #
-            "backupCount": 10,
+            "backupCount": 50,
 
             # Optional: ensures file opens safely even if reused
             "encoding": "utf-8",
