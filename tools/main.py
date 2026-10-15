@@ -494,12 +494,16 @@ for root, dir, files in os.walk(References, topdown=False):
                         # The vlm_ImageDescription function produces a JSON response with a description of the image
                         # and additional metadate that will help to index the image in the vector database.
                         response = vlm_ImageDescription(image_path=image_path, markdown_path=markdown_path)
+                        response_two = response.replace("```json", "")
+                        response_three = response_two.replace("```", "")
+
+                        print("\nResponse 3:\n", response_three)
 
                         # Sometimes the VLM does not produce a response that can be loaded into Python without
                         # raising an exception. Therefore, a simple try and except statement is used to retry
                         # creating an appropriate JSON response from the VLM.
                         try:
-                            resp_dict = json.loads(response)
+                            resp_dict = json.loads(response_three)
 
                         # If an exception occurs, log the exception and move on to the next attempt.
                         except Exception as e:

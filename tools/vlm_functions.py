@@ -534,7 +534,7 @@ def imageChecker(image_path):
         {
             "role": "user",
             "content": "If you recognise any clinical, genomic or statistical information in the image, return only "
-                       "'True'. If you do not recognise any clinical or statistical information in the image, return "
+                       "'True'. If you are unable to recognise any clinical or statistical information in the image, return "
                        "only 'False'. Do not return any other response.",
             "images": [image_path]
         }
