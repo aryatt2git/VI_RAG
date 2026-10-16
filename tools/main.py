@@ -45,7 +45,7 @@ for root, dir, files in os.walk(References, topdown=False):
     for file in files:
         # Specify only .pdf files.
         #if file.endswith('.pdf'):
-        if file.endswith('Meshkov et al  2021 PMID 33418990.pdf'):
+        if file.endswith('DiCostanzo2021 PMID 34756585 supp info 1.docx'):
 
             # Get the path to the file currently being iterated over.
             pdf_path = os.path.join(os.path.abspath(root), file)

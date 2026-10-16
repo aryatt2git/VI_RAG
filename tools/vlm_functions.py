@@ -425,7 +425,7 @@ def vlm_ImageDescription(image_path, context=None, markdown_path=None):
     - To the 'description' key, assign a comprehensive and profound analysis and description of the clinical information and significance of the image. Describe the image with intricate and accurate detail as if describing it to someone who cannot see the image. Use the text from the caption/legend matched with the image to support the explanation.
     - To the 'table' key, if the image is of a table, assign a textualised version of the table that can be embedded by a text embedder.
     - To the 'genes_mentioned' key, assign a list of the name of the genes mentioned in either the image or the caption/legend matched with the image from the markdown file that I sent to you earlier provided as context.
-    - To the 'variant_count' key, assign the number of variants that appear in the image. Do not provide any more information that the total number of variants that appear in the image. Do not include any other characters to describe the number than integers.
+    - To the 'variant_count' key, assign the number of variants that appear in the image. Do not provide any more information than the total number of variants that appear in the image. Do not include any other characters to describe the number than integers.
     - To the 'variants' key, assign a list of objects for each and every variant mentioned in either the image or the caption/legend matched with the image from the markdown file provided as context. Do not miss any variants out. 
     - To the 'gene' key, assign the gene symbol of the gene that the corresponding variant is in.
     - To the 'genomic_variant' key, assign the genomic variant as it appears in the image or the caption/legend matched with the image from the markdown file provided as context. It should start with 'g.' but might not. Remove any whitespace in the variant nomenclature.
@@ -569,4 +569,160 @@ def imageChecker(image_path):
     logger.info(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
 
     # True or False response from the VLM.
+    return response["message"]["content"]
+
+def vlm_TableExtractor(markdown_path):
+
+    # This code can be used to read the text in the .pdf markdown file, instead of referring to the vlm_loadtext()
+    # function.
+    with open(markdown_path, "r", encoding='utf-8') as f:
+        context = f.read()
+
+    # The initial query sent to the VLM is assigned to the 'VLM_query' variable. It describes what the desired output
+    # should be.
+    VLM_query = (
+        'Process the markdown file in accordance with the instructions below. Return each table in every '
+        'section/subsection/subsection of a subsection from the markdown file in accordance with the following JSON '
+        'format:'
+        '{"title": "", '
+        '"authors": [], '
+        '"type": "", '
+        '"figure_table_no": "", '
+        '"sub_figure_table_no": "", '
+        '"caption": "", '
+        '"description": "", '
+        '"table": "", '
+        '"genes_mentioned": [], '
+        '"variant_count": "", '
+        '"variants": ['
+        '   {'
+        '       "gene": "", '
+        '       "genomic_variant": "", '
+        '       "transcript_variant": "", '
+        '       "exon": "", '
+        '       "protein_variant": "", '
+        '       "protein_domain": "", '
+        '       "clinical_information": "", '
+        '       "clinical_significance": "", '
+        '       "evidence": "", '
+        '       "frequency": "", '
+        '       "het_carriers": "", '
+        '       "hom_carriers": "", '
+        '       "affected_carriers": "", '
+        '       "unaffected_carriers": "", '
+        '       "number_of_meioses": "", '
+        '       "n_mentions": ""'
+        '   }'
+        ']}'
+    )
+
+    # The context (content from the markdown file), the VLM_query and instructions of how text should be
+    # processed to achieve the desired outcome are assigned to the 'prompt' variable.
+    # Use <CONTEXT: {list(context)}> if using the vlm_loadContext() output for context.
+    prompt = f"""
+    ---------------------
+    CONTEXT: {context}
+    ---------------------
+    QUESTION: {VLM_query}
+    ---------------------
+    INSTRUCTIONS: 
+    - Extract as much information from the attached document as possible.
+    - Only use information from the attached document and the markdown file that I sent to you earlier for context.
+    - Only analyse tables in the markdown file that I sent to you earlier for context. Other figures and images should be skipped.
+    - Match the table to the corresponding table legend or table caption in the markdown file that I sent to you earlier for context.
+    - Know that the document's filename does not necessarily correspond with the table number in the markdown file. Instead, compare the information from the table to the information in table legends or table captions to find which corresponding legend or caption describes the table most accurately.
+    - To string fields, enter the text "null" in the string field if information cannot be provided by the table legend or table caption.
+    - To a list field that cannot be populated, return [].
+    - Output RAW JSON only. Do not include any introductory text, markdown code blocks (```), or concluding remarks.
+    - Never miss a variant.
+    - Analyse the entire variant.
+    - Never omit keys in the JSON. 
+    - Never hallucinate.
+    - Never speculate.
+    - If you are unable to extract any clinically relevant information or cannot understand the information, let the user know.
+    - To the 'title' key, assign the name of research paper/article.
+    - To the 'authors' key, assign a list of the names of the authors that wrote the research paper/article.
+    - To the 'type' key, assign 'table'.
+    - To the 'figure_table_no' key, assign the table number in the table caption or table legend matched with the table from the markdown file that I sent to you earlier provided as context.
+    - To the 'sub_figure_table_no' key, assign the table number in the table caption or table legend matched with the subsection of the image from the markdown file that I sent to you earlier provided as context. For example, 'B' would be assigned to this key for Table 2B.
+    - To the 'caption' key, assign the text provided in the table caption or table legend matched with the table from the markdown file that I sent to you earlier provided as context.
+    - To the 'description' key, assign a comprehensive and profound analysis and description of the clinical information and significance of the table. Describe the table with intricate and accurate detail as if describing it to someone who cannot see the table. Use the text from the table caption or table legend matched with the image to support the explanation.
+    - To the 'table' key, assign a textualised copy of the table that can be embedded by a text embedder.
+    - To the 'genes_mentioned' key, assign a list of the name of the genes mentioned in either the table or the table caption or table legend matched with the table from the markdown file that I sent to you earlier provided as context.
+    - To the 'variant_count' key, assign the number of variants that appear in the table. Do not provide any more information than the total number of variants that appear in the table. Do not include any other characters to describe the number than integers.
+    - To the 'variants' key, assign a list of objects for each and every variant mentioned in either the table or the table caption or table legend matched with the table from the markdown file provided as context. Do not miss any variants out. 
+    - To the 'gene' key, assign the gene symbol of the gene that the corresponding variant is in.
+    - To the 'genomic_variant' key, assign the genomic variant as it appears in the table or the table caption or table legend matched with the table from the markdown file provided as context. It should start with 'g.' but might not. Remove any whitespace in the variant nomenclature.
+    - To the 'transcript_variant' key, assign the variant described at the transcript level as it appears in the table or the table caption or table legend matched with the table from the markdown file provided as context. It should start with 'c.' but might not. Remove any whitespace in the variant nomenclature.
+    - To the 'exon' key, assign the exon of the gene that the corresponding variant is in.
+    - To the 'protein_variant' key, assign the variant described at the protein level as it appears in the table or the table caption or table legend matched with the table from the markdown file provided as context. It should start with 'p.' but might not. Remove any whitespace in the variant nomenclature.
+    - To the 'protein_domain' key, assign the protein domain of the protein that the corresponding variant is in.
+    - To the 'clinical_information' key, provide and assign a comprehensive and profound analysis and description of the clinical information related to the corresponding variant from the table or the table caption or table legend matched with the table from the markdown file provided as context.
+    - To the 'clinical_significance' key, provide and assign a comprehensive analysis and description of the clinical significance of the corresponding variant from the table or the table caption or table legend matched with the table from the markdown file provided as context.
+    - To the 'evidence' key, assign the text from the table or the table caption or table legend matched with the table from the markdown file provided as context that was used to substantiate the clinical information and significance.
+    - To the 'frequency' key, assign the frequency of the corresponding variant as described in the table or the table caption or table legend matched with the table from the markdown file provided as context.
+    - To the 'het_carriers' key, assign the number of affected carriers with the corresponding variant in a heterozygous genotype counted in the table or the table caption or table legend matched with the table from the markdown file provided as context.
+    - To the 'hom_carriers' key, assign the number of affected carriers with the corresponding variant in a homozygous genotype counted in the table or the table caption or table legend matched with the table from the markdown file provided as context.
+    - To the 'affected_carriers' key, assign the total number of affected carriers with the corresponding variant counted in the table or the table caption or table legend matched with the table from the markdown file provided as context.
+    - To the 'unaffected_carriers' key, assign the total number of unaffected carriers with the corresponding variant counted in the table or the table caption or table legend matched with the table from the markdown file provided as context.
+    - One meiosis is the inheritance of a variant from one affected individual to their affected child.
+    - To the 'number_of_meioses' key, assign the total number of meioses of the corresponding variant counted in the table or the table caption or table legend matched with the table from the markdown file provided as context.
+    - To the 'n_mentions' key, assign the total number of times the variant was mentioned throughout the corresponding text in any way, whether it be in its genomic, transcript or protein description or in an abbreviated format.
+    """
+
+    # The VLM needs to be assigned to a character so it understands the language used in the prompt more accurately.
+    # It also wants to distinguish the system prompt from the user's prompt. The role and corresponding prompt are
+    # defined in two separate dictionaries compiled in a list.
+    messages = [
+        {
+            "role": "system",
+            "content": "You are a genomic clinical scientist with the ability to understand, analyse and interpret the "
+                       "content of research papers/articles/literature stored in markdown format. Use only the "
+                       "markdown file I sent to you earlier for context. Do not hallucinate. Do not speculate."
+        },
+        {
+            "role": "user",
+            "content": f"{prompt}"
+        }
+    ]
+
+    # The chat() function sends the above message to a specified model with additional parameters. The response is
+    # returned in JSON.
+    response = chat(
+        model=model,
+        messages=messages,
+        format="json",
+        options={
+            'temperature': 0.0,  # 0-1. Lower temperature makes the output more focused and consistent
+            'repeat_penalty': 1.0,  # Setting to 1.0 turns OFF the penalty that stops it from repeating itself.
+            # >1.0 increases the penalty for repetition, making repetition less likely.
+            'num_predict': 25000,  # Give the model plenty of room to write a long answer
+            'seed': 42,  # This combines with temperature to produce the EXACT same answer every single time.
+            'num_ctx': 32768,  # Add this to handle the image + markdown
+        }
+    )
+
+    # Log the VLM response to keep a record of what was returned by the vlm_TextExtraction function.
+    logger.info(f"vlm_TextDescription response for {markdown_path}:")
+    logger.info(response["message"]["content"])
+
+    # The path to the markdown file, the file size of the markdown file, the input text and its length, the
+    # number of tokens it cost to query and receive a response from the VLM are all recorded in the
+    # 'ollama_token_costs.txt' file, in case the token cost needs to be evaluated.
+    with open("ollama_token_costs.txt", 'a') as f:
+        f.write(f"{str(datetime.datetime.now())}\n"
+                f"Model: {model}\n"
+                f"vlm_TextExtraction\n"
+                f"Path to markdown file processed by VLM: {markdown_path}\n"
+                f"Size of markdown file: {os.path.getsize(markdown_path)} bytes\n"
+                f"Query costed: {response['prompt_eval_count']} tokens\n"
+                f"Response costed: {response['eval_count']} tokens\n"
+                f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n\n")
+
+    # Log the number of tokens it cost to generate the response.
+    logger.info(f"Query costed: {response['prompt_eval_count']} tokens")
+    logger.info(f"Response costed: {response['eval_count']} tokens")
+    logger.info(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
+
+    # The JSON response with the description is returned.
     return response["message"]["content"]
