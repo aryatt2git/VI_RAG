@@ -714,7 +714,7 @@ def vlm_TableExtractor(doc_markdown_path, pdf_markdown_path):
     )
 
     # Log the VLM response to keep a record of what was returned by the vlm_TextExtraction function.
-    logger.info(f"vlm_TextDescription response for {doc_markdown_path}:")
+    logger.info(f"vlm_TableExtractor response for {doc_markdown_path}:")
     logger.info(response["message"]["content"])
 
     # The path to the markdown file, the file size of the markdown file, the input text and its length, the
@@ -723,7 +723,7 @@ def vlm_TableExtractor(doc_markdown_path, pdf_markdown_path):
     with open("ollama_token_costs.txt", 'a') as f:
         f.write(f"{str(datetime.datetime.now())}\n"
                 f"Model: {model}\n"
-                f"vlm_TextExtraction\n"
+                f"vlm_TableExtractor\n"
                 f"Path to markdown file processed by VLM: {doc_markdown_path}\n"
                 f"Size of markdown file: {os.path.getsize(doc_markdown_path)} bytes\n"
                 f"Query costed: {response['prompt_eval_count']} tokens\n"
@@ -738,15 +738,16 @@ def vlm_TableExtractor(doc_markdown_path, pdf_markdown_path):
     # The JSON response with the description is returned.
     return response["message"]["content"]
 
-def vlm_docChecker(doc_ls):
+def vlm_docChecker(doc_ls, PMID):
 
     context = []
 
-    for doc in range(len(doc_ls)):
+    for doc in doc_ls:
 
-        with open(doc, "r", encoding='utf-8') as f:
-            doc_content = f"{doc}\n{f.read()}"
-            context.append(doc_content)
+        file = open(doc, "r", encoding='utf-8')
+        doc_content = file.read()
+        context.append(doc + '\n' + doc_content)
+        file.close()
 
     VLM_query = (
         'Which of the attached files are research articles and which documents are its supporting information? '
@@ -759,7 +760,7 @@ def vlm_docChecker(doc_ls):
         'corresponding key.'
     )
 
-    prompt=f"""
+    prompt = f"""
     -------------------------------------
     CONTEXT:
     {context}
@@ -786,7 +787,7 @@ def vlm_docChecker(doc_ls):
         },
         {
             "role": "user",
-            "content": ""
+            "content": f"{prompt}"
         }
     ]
 
@@ -796,27 +797,26 @@ def vlm_docChecker(doc_ls):
         messages = messages
     )
 
-    # Log the VLM response to keep a record of what was returned by the VLM.
-    logger.info(f"imageChecker response for {os.path.basename(image_path)}:")
-    logger.info(f"VLM determines that image is clinically significant: {response['message']['content']}")
-
     # The path to the image file, the file size of the image file, the number of tokens it cost to query and receive a
     # response from the VLM are all recorded in the 'ollama_token_costs.txt' file, in case the token cost needs to be
     # evaluated.
     with open("ollama_token_costs.txt", 'a') as f:
         f.write(f"{str(datetime.datetime.now())}\n"
                 f"Model: {model}\n"
-                f"vlm_ImageChecker\n"
-                f"Path to image: {image_path}\n"
-                f"Size of image: {os.path.getsize(image_path)} bytes\n"
+                f"vlm_docChecker\n"
+                f"PMID: {PMID}\n"
                 f"Query costed: {response['prompt_eval_count']} tokens\n"
                 f"Response costed: {response['eval_count']} tokens\n"
                 f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n\n")
+
+    # Log the VLM response to keep a record of what was returned by the VLM.
+    logger.info(f"docChecker response for PMID {PMID}:")
+    logger.info(f"VLM Response:\n{response['message']['content']}")
 
     # Log the number of tokens it cost to generate the response.
     logger.info(f"Query costed: {response['prompt_eval_count']} tokens")
     logger.info(f"Response costed: {response['eval_count']} tokens")
     logger.info(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
 
-    # True or False response from the VLM.
+    # Return JSON response from the VLM.
     return response["message"]["content"]
