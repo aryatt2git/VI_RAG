@@ -116,7 +116,7 @@ for root, dir, files in os.walk(References, topdown=False):
 
                 # The docling_PFD2Text generates a markdown file from the .pdf filepath. The filepath to the markdown
                 # file is returned by the docling_PDF2Text function and assigned to the 'markdown_path' variable.
-                markdown_path = docling_PDF2Text(pdf_path)
+                pdf_markdown_path = docling_PDF2Text(pdf_path)
                 #print(markdown_path)
 
                 # The markdown file is provided as context to the Visual Language Model (VLM) via the vlm_loadContext
@@ -124,7 +124,7 @@ for root, dir, files in os.walk(References, topdown=False):
                 # This was done to reduce the cost of tokens sent to Ollama but it did not change the cost very much.
                 # CONSIDER REMOVING THIS STEP AND REMEMBER TO CHANGE THE VLM_TEXTEXTRACTION AND THE
                 # VLM_IMAGEDESCRIPTION INPUT PARAMETERS AND FUNCTIONS.
-                #context = vlm_loadContext(markdown_path=markdown_path)
+                #context = vlm_loadContext(markdown_path=pdf_markdown_path)
 
                 # Create an empty variable to store the list of python dictionaries in JSON format produced by the VLM.
                 ext_json_list = None
@@ -145,7 +145,7 @@ for root, dir, files in os.walk(References, topdown=False):
                     try:
                         # The vlm_TextExtraction function is used to parse each section in the .pdf file into a JSON
                         # object along with accompanying meta-data. Each section if then store in a list.
-                        ext_response = vlm_TextExtraction(markdown_path=markdown_path)
+                        ext_response = vlm_TextExtraction(markdown_path=pdf_markdown_path)
                         # The list is then loaded into python.
                         ext_json_list = json.loads(ext_response)
 
@@ -244,7 +244,7 @@ for root, dir, files in os.walk(References, topdown=False):
                         # VECTOR DATABASE IF THE FILEPATH IS DIFFERENT (I.E. DIFFERENT USERS COULD IMPORT THE SAME PAPER
                         # AS ONE THAT ALREADY EXISTS IN THE VECTOR DATABASE BECAUSE THEY WILL HAVE DIFFERENT ABSOLUTE
                         # PATHS FOR THE MARKDOWN FILE).
-                        qdrant_dict["path"] = markdown_path
+                        qdrant_dict["path"] = pdf_markdown_path
 
                         # The chunk index is assigned to the 'chunk_idx' key, in the 'qdrant_dict' dictionary.
                         qdrant_dict["chunk_idx"] = i + 1
@@ -270,7 +270,7 @@ for root, dir, files in os.walk(References, topdown=False):
                             # raising an exception. Therefore, a simple try and except statement is used to retry
                             # parsing a list of each section from the .pdf into ext_json_list.
                             try:
-                                description_resp = vlm_TextDescription(input_text=chunk, markdown_path=markdown_path)
+                                description_resp = vlm_TextDescription(input_text=chunk, markdown_path=pdf_markdown_path)
                                 description_json = json.loads(description_resp)
 
                                 # If the description returned by the VLM is a NoneType value or the description key
@@ -449,18 +449,15 @@ for root, dir, files in os.walk(References, topdown=False):
                     logger.info(f"{image} is being prepared for importation into Qdrant vector database.")
 
                     # Check if the markdown file exists. If it does not, generate it and assign its filepath to the
-                    # 'markdown_path' variable.
+                    # 'pdf_markdown_path' variable.
                     if os.path.exists(markdown):
-                        markdown_path = os.path.abspath(os.path.join(images, '..', f'{filename}.md'))
+                        pdf_markdown_path = os.path.abspath(os.path.join(images, '..', f'{filename}.md'))
                     else:
                         # Log that the markdown file is being recreated.
                         logger.info(f"Creating markdown file to inform image description.")
-                        markdown_path = docling_PDF2Text(pdf_path)
+                        pdf_markdown_path = docling_PDF2Text(pdf_path)
                         # Log that markdown was successfully created.
-                        logger.info(f"Successfully created markdown file: {markdown_path}")
-
-                    # Log the path to the markdown path?
-                    #print(markdown_path)
+                        logger.info(f"Successfully created markdown file: {pdf_markdown_path}")
 
                     # The markdown file is provided as context to the Visual Language Model (VLM) via the
                     # vlm_loadContext function which commits the markdown file to the VLM's 'memory' for 60 minutes.
@@ -468,7 +465,7 @@ for root, dir, files in os.walk(References, topdown=False):
                     # much.
                     # CONSIDER REMOVING THIS STEP AND REMEMBER TO CHANGE THE VLM_TEXTEXTRACTION AND THE
                     # VLM_IMAGEDESCRIPTION INPUT PARAMETERS AND FUNCTIONS.
-                    #context = vlm_loadContext(markdown_path=markdown_path)
+                    #context = vlm_loadContext(markdown_path=pdf_markdown_path)
 
                     # Get the absolute path to the image being processed in the current iteration (current image).
                     image_path = os.path.abspath(os.path.join(images, image))
@@ -497,7 +494,7 @@ for root, dir, files in os.walk(References, topdown=False):
 
                         # The vlm_ImageDescription function produces a JSON response with a description of the image
                         # and additional metadate that will help to index the image in the vector database.
-                        response = vlm_ImageDescription(image_path=image_path, markdown_path=markdown_path)
+                        response = vlm_ImageDescription(image_path=image_path, markdown_path=pdf_markdown_path)
 
                         # The JSON generated by vlm_ImageDescription is sometimes wrapped by ```json...``` which
                         # prevents the JSON from being imported correctly into Python. These characters are removed.
@@ -757,6 +754,22 @@ for root, dir, files in os.walk(References, topdown=False):
             # Once the images from the .pdf file have been imported, delete them from the 'images' folder.
             if os.path.exists(images):
                 shutil.rmtree(images)
+
+
+
+            # Check if the markdown file exists. If it does not, generate it and assign its filepath to the
+            # 'pdf_markdown_path' variable.
+            if os.path.exists(os.path.abspath(markdown_name)):
+                pdf_markdown_path = os.path.abspath(markdown_name)
+            else:
+                # Log that the markdown file is being recreated.
+                logger.info(f"Creating markdown file to inform image description.")
+                pdf_markdown_path = docling_PDF2Text(pdf_path)
+                # Log that markdown was successfully created.
+                logger.info(f"Successfully created markdown file: {pdf_markdown_path}")
+
+
+
 
             # Add the .pdf filename to 'pdf_paths.txt', so that .pdf files that have already been imported are skipped.
             with open("pdf_paths.txt", "a") as f:
