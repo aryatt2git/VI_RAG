@@ -737,3 +737,86 @@ def vlm_TableExtractor(doc_markdown_path, pdf_markdown_path):
 
     # The JSON response with the description is returned.
     return response["message"]["content"]
+
+def vlm_docChecker(doc_ls):
+
+    context = []
+
+    for doc in range(len(doc_ls)):
+
+        with open(doc, "r", encoding='utf-8') as f:
+            doc_content = f"{doc}\n{f.read()}"
+            context.append(doc_content)
+
+    VLM_query = (
+        'Which of the attached files are research articles and which documents are its supporting information? '
+        'Return a JSON where the filename of each document provided as context is a key. The filename should be the '
+        'first line of each value in the context list. If the document is a research article, assign only "research '
+        'article" to the corresponding key. If the document is supporting information to the research article, assign '
+        '"supporting information to the corresponding key. If the document is neither an article, nor supporting '
+        'information, assign "other" to the corresponding key. If a document shares >80% of its content with another '
+        'document in the context list that has already had a value assigned to its key, assign "copy" to the '
+        'corresponding key.'
+    )
+
+    prompt=f"""
+    -------------------------------------
+    CONTEXT:
+    {context}
+    -------------------------------------
+    QUESTION:
+    {VLM_query}
+    -------------------------------------
+    INSTRUCTIONS:
+    - If the document is a research article, assign only "research article" to the corresponding key. 
+    - If the document is supporting information to the research article, assign "supporting information" to the corresponding key. 
+    - If the document is neither an article, nor supporting information, assign "other" to the corresponding key. 
+    - If a document shares >80% of its content with another document in the context list that has already had a value assigned to its key, assign "copy" to the corresponding key.
+    """
+
+    # The VLM needs to be assigned to a character so it understands the language used in the prompt more accurately.
+    # It also wants to distinguish the system prompt from the user's prompt. The role and corresponding prompt are
+    # defined in two separate dictionaries compiled in a list. The path to the image file is provided in the dictionary
+    # which defines the user's role.
+    messages = [
+        {
+            "role": "system",
+            "content": "You are a genomic clinical scientist with the ability to recognise and understand clinical "
+                       "and statistical information. Do not hallucinate. Do not speculate."
+        },
+        {
+            "role": "user",
+            "content": ""
+        }
+    ]
+
+    # The chat() function sends the above message to a specified model.
+    response = chat(
+        model = model,
+        messages = messages
+    )
+
+    # Log the VLM response to keep a record of what was returned by the VLM.
+    logger.info(f"imageChecker response for {os.path.basename(image_path)}:")
+    logger.info(f"VLM determines that image is clinically significant: {response['message']['content']}")
+
+    # The path to the image file, the file size of the image file, the number of tokens it cost to query and receive a
+    # response from the VLM are all recorded in the 'ollama_token_costs.txt' file, in case the token cost needs to be
+    # evaluated.
+    with open("ollama_token_costs.txt", 'a') as f:
+        f.write(f"{str(datetime.datetime.now())}\n"
+                f"Model: {model}\n"
+                f"vlm_ImageChecker\n"
+                f"Path to image: {image_path}\n"
+                f"Size of image: {os.path.getsize(image_path)} bytes\n"
+                f"Query costed: {response['prompt_eval_count']} tokens\n"
+                f"Response costed: {response['eval_count']} tokens\n"
+                f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n\n")
+
+    # Log the number of tokens it cost to generate the response.
+    logger.info(f"Query costed: {response['prompt_eval_count']} tokens")
+    logger.info(f"Response costed: {response['eval_count']} tokens")
+    logger.info(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
+
+    # True or False response from the VLM.
+    return response["message"]["content"]
