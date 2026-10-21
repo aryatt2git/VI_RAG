@@ -39,7 +39,7 @@ for root, dir, files in os.walk(references, topdown=False):
 
 references = "/mnt/F_share/DNA/Cardiac/Familial Hypercholesterolaemia/References/"
 destination = "/data/home/arjun/FH_references/"
-full_pdf_dict = {}
+full_pmid_dict = {}
 other_count = 0
 
 for pmid in str_pmids_ls:
@@ -70,13 +70,13 @@ for pmid in str_pmids_ls:
             other_count += 1
             print("Other:", key)
 
-    full_pdf_dict[pmid] = json_resp
+    full_pmid_dict[pmid] = json_resp
 
     for markdown in pmid_filepaths:
         os.remove(markdown)
 
 file = open("pmid_json.txt", "w")
-file.write(json.dumps(full_pdf_dict))
+file.write(json.dumps(full_pmid_dict))
 file.close()
 
 print("Other counter:", other_count)
