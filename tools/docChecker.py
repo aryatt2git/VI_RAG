@@ -91,24 +91,31 @@ for pmid in str_pmids_ls:
 
             if pmid in file:
 
-                if file.endswith(".doc") or file.endswith(".DOC"):
-                    basename = os.path.splitext(file)[0]
-                    docx_path = os.path.join(root, f"{basename}.docx")
+                try:
+                    if file.endswith(".doc") or file.endswith(".DOC"):
+                        basename = os.path.splitext(file)[0]
+                        docx_path = os.path.join(root, f"{basename}.docx")
 
-                    # If Microsoft Word is installed, doc2docx Python library can be used.
-                    #convert(filepath, docx_path)
-                    # If LibreOffice is installed, use Subprocess Python library to execute soffice.
-                    soffice = "/Applications/LibreOffice.app/Contents/MacOS/soffice"
-                    run([soffice, "--headless", "--convert-to", "docx", "-outdir", root, filepath], check=True)
+                        # If Microsoft Word is installed, doc2docx Python library can be used.
+                        #convert(filepath, docx_path)
+                        # If LibreOffice is installed, use Subprocess Python library to execute soffice.
+                        soffice = "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+                        run([soffice, "--headless", "--convert-to", "docx", "-outdir", root, filepath], check=True)
 
-                    markdown_path = docling_PDF2Text(docx_path)
-                    pmid_filepaths.append(docx_path)
-                    markdown_filepaths.append(markdown_path)
+                        markdown_path = docling_PDF2Text(docx_path)
+                        pmid_filepaths.append(docx_path)
+                        markdown_filepaths.append(markdown_path)
 
-                else:
-                    markdown_path = docling_PDF2Text(filepath)
-                    pmid_filepaths.append(filepath)
-                    markdown_filepaths.append(markdown_path)
+                    else:
+                        markdown_path = docling_PDF2Text(filepath)
+                        pmid_filepaths.append(filepath)
+                        markdown_filepaths.append(markdown_path)
+
+                except Exception as e:
+                    with open("errors.txt", "a") as f:
+                        f.write(f"{pmid}: {type(e).__name__}: {e}\n")
+
+                    break
 
     if len(pmid_filepaths) == 0:
         continue
@@ -116,9 +123,16 @@ for pmid in str_pmids_ls:
     print(f"PMID {pmid}:")
     print(f"PMID Files:\n{pmid_filepaths}")
 
-    response = vlm_docChecker(markdown_filepaths, pmid)
-    clean_response = response.replace("```json", "").replace("```", "")
-    json_resp = json.loads(clean_response)
+    try:
+        response = vlm_docChecker(markdown_filepaths, pmid)
+        clean_response = response.replace("```json", "").replace("```", "")
+        json_resp = json.loads(clean_response)
+
+    except Exception as e:
+        with open("errors.txt", "a") as f:
+            f.write(f"{pmid}: {type(e).__name__}: {e}\n")
+
+        continue
 
     print(json.dumps(json_resp, indent=4))
 
