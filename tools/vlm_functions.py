@@ -752,12 +752,7 @@ def vlm_docChecker(doc_ls, PMID):
     VLM_query = (
         'Which of the attached files are research articles and which documents are its supporting information? '
         'Return a JSON where the filename of each document provided as context is a key. The filename should be the '
-        'first line of each value in the context list. If the document is a research article, assign only "research '
-        'article" to the corresponding key. If the document is supporting information to the research article, assign '
-        '"supporting information to the corresponding key. If the document is neither an article, nor supporting '
-        'information, assign "other" to the corresponding key. If a document shares >80% of its content with another '
-        'document in the context list that has already had a value assigned to its key, assign "copy" to the '
-        'corresponding key.'
+        'first line of each value in the context list and it should end in ".md". Follow the instructions below.'
     )
 
     prompt = f"""

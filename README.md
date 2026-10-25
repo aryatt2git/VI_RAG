@@ -32,3 +32,5 @@ don't forget to:
 brew install poppler
 brew install tesseract
 brew install tesseract-lang
+
+libreoffice was downloaded to convert .doc files into .docx files
