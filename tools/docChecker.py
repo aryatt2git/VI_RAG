@@ -73,8 +73,10 @@ for pmid in str_pmids_ls:
     # 30583242 Prompt is too large to process.
     # 9143924 Input document Jensen et al 1997 PMID 9143924.pdf is not valid.
     # 35177841 ollama._types.ResponseError: http: request body too large (status code: 400)
-    # 269629 The prompt is too long: 269629, model maximum context length: 262144
-    if pmid in ["31589614", "35460704", "32041611", "39020067", "32820175", "30583242", "9143924", "35177841"]:
+    # 269629 The prompt is too long: 269629, model maximum context length: 262144 (not in list)
+    # 3127 Detected 802702 lines (too big to process)
+    #if pmid in ["31589614", "35460704", "32041611", "39020067", "32820175", "30583242", "9143924", "35177841", "32629184", "23815734", "9157944", "33258288", "3127"]:
+    if pmid == "3127":
         continue
 
     pmid_filepaths = []
@@ -84,7 +86,8 @@ for pmid in str_pmids_ls:
         for file in files:
 
             if file.endswith(".zip") or "~$2015 PMID 25487149 supp info" in file:
-                unused_files.append(file)
+                if file not in unused_files:
+                    unused_files.append(file)
                 continue
 
             filepath = os.path.join(root, file)
@@ -142,17 +145,17 @@ for pmid in str_pmids_ls:
 
         for i in range(len(markdown_filepaths)):
             if key == markdown_filepaths[i]:
-                print("Markdown position path:", markdown_filepaths[i])
-                print("File position path:", pmid_filepaths[i])
 
                 filepath_dict[pmid_filepaths[i]] = value
 
-            if value != "copy":
+                if value == "copy":
+                    break
+
                 shutil.copy(pmid_filepaths[i], destination)
 
-            if value == "other":
-                other_count += 1
-                print("Other:", key)
+        if value == "other":
+            other_count += 1
+            print("Other:", key)
 
     full_pmid_dict[pmid] = filepath_dict
 
