@@ -31,7 +31,7 @@ def chunkText(chunk_size=976, chunk_overlap=196):
     # 3. Space (Words)
     # 4. Period (End of sentence - BUT we have to be careful with variants like g.123)
     # "" was removed from the list. It may need to be returned.
-    separators = ["\n\n", "\n", " ", ". "]
+    separators = ["\n\n", "\n", ". ", " "]
 
     # The model responsible for tokenising the text is loaded into the function
     tokenizer = AutoTokenizer.from_pretrained('BAAI/bge-m3')

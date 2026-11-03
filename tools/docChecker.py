@@ -32,7 +32,7 @@ pmid_df = df[df["detected_license_type"].isin([
     "CC BY",
     "Public domain",
     "Open access, non-commercial terms (unspecified license)",
-    "Text/data mining or fair-use access only",
+    #"Text/data mining or fair-use access only",
     #"CC BY-ND"
     ]
 )]
@@ -65,17 +65,7 @@ for pmid in str_pmids_ls:
     if pmid in ref_pmid_ls:
         continue
 
-    # 31589614 files are too big for the prompt.
-    # 35460704 The prompt is too long: 343387, model maximum context length: 262144.
-    # 32041611 Prompt is too large to process.
-    # 39020067 File format not allowed: Elfatih et al 2024 PMID 39020067 Supp Table 1.xls (you need xlsx).
-    # 32820175 The prompt is too long: 428262, model maximum context length: 262144
-    # 30583242 Prompt is too large to process.
-    # 9143924 Input document Jensen et al 1997 PMID 9143924.pdf is not valid.
-    # 35177841 ollama._types.ResponseError: http: request body too large (status code: 400)
-    # 269629 The prompt is too long: 269629, model maximum context length: 262144 (not in list)
     # 3127 Detected 802702 lines (too big to process)
-    #if pmid in ["31589614", "35460704", "32041611", "39020067", "32820175", "30583242", "9143924", "35177841", "32629184", "23815734", "9157944", "33258288", "3127"]:
     if pmid == "3127":
         continue
 
@@ -103,10 +93,22 @@ for pmid in str_pmids_ls:
                         #convert(filepath, docx_path)
                         # If LibreOffice is installed, use Subprocess Python library to execute soffice.
                         soffice = "/Applications/LibreOffice.app/Contents/MacOS/soffice"
-                        run([soffice, "--headless", "--convert-to", "docx", "-outdir", root, filepath], check=True)
+                        run([soffice, "--headless", "--convert-to", "docx", "--outdir", root, filepath], check=True)
 
                         markdown_path = docling_PDF2Text(docx_path)
                         pmid_filepaths.append(docx_path)
+                        markdown_filepaths.append(markdown_path)
+
+                    elif file.endswith(".xls") or file.endswith(".XLS"):
+                        basename = os.path.splitext(file)[0]
+                        xlsx_path = os.path.join(root, f"{basename}.xlsx")
+
+                        # If LibreOffice is installed, use Subprocess Python library to execute soffice.
+                        soffice = "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+                        run([soffice, "--headless", "--convert-to", "xlsx", "--outdir", root, filepath], check=True)
+
+                        markdown_path = docling_PDF2Text(xlsx_path)
+                        pmid_filepaths.append(xlsx_path)
                         markdown_filepaths.append(markdown_path)
 
                     else:
@@ -134,7 +136,6 @@ for pmid in str_pmids_ls:
     except Exception as e:
         with open("errors.txt", "a") as f:
             f.write(f"{pmid}: {type(e).__name__}: {e}\n")
-
         continue
 
     print(json.dumps(json_resp, indent=4))
