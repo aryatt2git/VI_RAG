@@ -122,14 +122,25 @@ def docling_ImageExport(filepath:str):
     picture_counter = 0
     for element, _level in conv_res.document.iterate_items():
         if isinstance(element, TableItem):
+
+            img = element.get_image(conv_res.document)
+            if img is None:
+                continue
+
             table_counter += 1
             element_image_filename = (
                     Path(images_dir) / f"{images_name}-table-{table_counter}.png"
             )
+
             with element_image_filename.open("wb") as fp:
                 element.get_image(conv_res.document).save(fp, "PNG")
 
         if isinstance(element, PictureItem):
+
+            img = element.get_image(conv_res.document)
+            if img is None:
+                continue
+
             picture_counter += 1
             element_image_filename = (
                     Path(images_dir) / f"{images_name}-picture-{picture_counter}.png"

@@ -11,6 +11,8 @@ import json
 import time
 import copy
 from datetime import timedelta
+from sys import exc_info
+
 from docling_functions import *
 from chunk_text import chunkText
 from vlm_functions import *
@@ -45,7 +47,7 @@ for root, dir, files in os.walk(References, topdown=False):
     for file in files:
         # Specify only .pdf files.
         #if file.endswith('.pdf'):
-        if file.endswith('DiCostanzo2021 PMID 34756585 supp info 1.docx'):
+        if file.endswith('Xiong et al 2015 Science PMID 25525159.pdf'):
 
             # Get the path to the file currently being iterated over.
             pdf_path = os.path.join(os.path.abspath(root), file)
@@ -156,7 +158,8 @@ for root, dir, files in os.walk(References, topdown=False):
                         elif len(ext_json_list) == 0:
                             continue
 
-                    except:
+                    except Exception as e:
+                        print(e)
                         continue
 
                 # If after 10 attempts, 'ext_json_list' variable is None or the VLM returns an empty list, the markdown
@@ -756,7 +759,7 @@ for root, dir, files in os.walk(References, topdown=False):
                 shutil.rmtree(images)
 
 
-
+            """
             # Check if the markdown file exists. If it does not, generate it and assign its filepath to the
             # 'pdf_markdown_path' variable.
             if os.path.exists(os.path.abspath(markdown_name)):
@@ -767,7 +770,7 @@ for root, dir, files in os.walk(References, topdown=False):
                 pdf_markdown_path = docling_PDF2Text(pdf_path)
                 # Log that markdown was successfully created.
                 logger.info(f"Successfully created markdown file: {pdf_markdown_path}")
-
+            """
 
 
 

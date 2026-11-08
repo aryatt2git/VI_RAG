@@ -8,8 +8,11 @@ import datetime
 setup_logging()
 logger = logging.getLogger(__name__)
 
+#model = "gemma4:31b-cloud" # Context window not large enough
+#model="beam:cloud" # Does not accept images
+model="deepseek-v4.1-flash:1017-cloud"
+#model="glm-5.3-flash:cloud"
 #model="kimi-k3:cloud"
-model = "gemma4:31b-cloud"
 
 def vlm_loadContext(markdown_path):
     """
@@ -147,7 +150,7 @@ def vlm_TextExtraction(context=None, markdown_path=None):
     - Remove all in-line references to other articles.
     - Match lines that end abruptly to other lines in the same section that start abruptly and check that they make sense.
     - If you see ' &gt; ' in the text, replace it with '>'. Make sure the whitespaces either side of &gt; are removed.
-    - Replace special markdown syntax with the original characters.
+    - Convert special markdown syntax with the original characters.
     - Create a list of JSON objects for each section/subsection/subsections of subsections, where appropriate.
     - To string fields, enter the text "null" in the string field if information cannot be provided by content from the attached markdown file.
     - To a list field that cannot be populated, return [].
@@ -404,7 +407,7 @@ def vlm_ImageDescription(image_path, context=None, markdown_path=None):
     ---------------------
     INSTRUCTIONS: 
     - Extract as much information from the attached image as possible.
-    - Only use information from the attached image and the markdown file that I sent to you earlier for context.
+    - Only use information from the attached image and the markdown files for context.
     - Only analyse images that are referenced inside table/figure legends/captions in the markdown file that I sent to you earlier for context. Other images should be skipped.
     - Match the images to table/figure legends/captions in the markdown file that I sent to you earlier for context.
     - Know that the image's filename does not necessarily correspond with the image number, figure number or table number in the markdown file. Instead, compare the information from the image to the information in the figure/image/table legends/captions to find which legend/caption describes the image most accurately.
@@ -814,4 +817,315 @@ def vlm_docChecker(doc_ls, PMID):
     logger.info(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
 
     # Return JSON response from the VLM.
+    return response["message"]["content"]
+
+
+def vlm_TotalOutput(pmid, markdown_list, images_list):
+
+    context = ""
+    for markdown in markdown_list:
+        with open(markdown, "r", encoding='utf-8') as f:
+            context = context + f"Filename: {os.path.splitext(os.path.basename(markdown))}\n{f.read()}\n"
+
+    vlm_query = VLM_query = (
+        'Each markdown file starts with "Filename:" and ends at the next line that starts with "Filename:".'
+        'Determine which markdown file is the main article and which files provide supporting information. Process the '
+        'main article markdown file in accordance with the instructions below. Return each subsection of every '
+        'section/subsection/subsection of a subsection from the markdown file in accordance with the following JSON '
+        'format:'
+        '{"title": "", '
+        ' "authors": [], '
+        ' "PMID": "", '
+        ' "section_header": "", '
+        ' "subsection_header": "", '
+        ' "sub_subsection_header": "", '
+        ' "text": "", "genes_mentioned": [], '
+        ' variant_count": "", '
+        ' "variants": ['
+        '   {"gene": "", '
+        '    "genomic_variant": "", '
+        '   "transcript_variant": "", '
+        '   "exon": "", "protein_variant": "", '
+        '   "protein_domain": "", '
+        '   "clinical_information": "", '
+        '   "clinical_significance": "", '
+        '   "frequency": "", "het_carriers": "", '
+        '   "hom_carriers": "", '
+        '   "affected_carriers": "", '
+        '   "unaffected_carriers": "", '
+        '   "number_of_meioses": "", '
+        '   "n_mentions": "", }]}'
+    )
+
+    prompt = f"""
+    ---------------------
+    CONTEXT: {context}
+    ---------------------
+    QUESTION: {VLM_query}
+    ---------------------
+    INSTRUCTIONS: 
+    - Extract as much information from the markdown files and images as possible.
+    - Use all of the content from the markdown files and images for context.
+    - Never hallucinate.
+    - Never speculate.
+    - Only use information from the markdown files and images for context.
+    - Match each image to an image legend or image caption or table legend or table caption or figure legend or figure caption in the markdown files for context. If -picture-*.png or -table-*.png is removed from the image filename and .md is removed from the filename, the image should match with the markdown filename that it came from. Search for the corresponding legend or caption in the markdown file that it came from.
+    - Compare the information from the image to the information in the image legend or image caption or table legend or table caption or figure legend or figure caption to find which legend or caption describes the image most accurately.
+    - Split the text in the main article markdown file into sections, subsections, and subsections of subsections, if necessary.
+    - Remove all in-line references to other articles.
+    - Match lines that end abruptly to other lines in the same section that start abruptly and check that they make sense.
+    - If you see ' &gt; ' in the text, replace it with '>'. Make sure the whitespaces either side of &gt; are removed.
+    - Replace special markdown syntax with the original characters.
+    - Create a list of JSON objects for each section/subsection/subsections of subsections, where appropriate.
+    - To string fields, enter the text "null" in the string field if information cannot be provided by content from the attached markdown file.
+    - To a list field that cannot be populated, return [].
+    - Return RAW JSON only. Do not include any introductory text, markdown code blocks (```), or concluding remarks.
+    - Never miss a paragraph.
+    - Analyse each section of the markdown files that I sent to you earlier as context.
+    - Use supporting information from the images and other markdown files to provide deeper context and understanding of the main article.
+    - Never omit keys in the JSON.
+    - If you are unable to extract any clinically relevant information or cannot understand the information, let the user know.
+    - To the 'title' key, assign the name of research paper/article.
+    - To the 'authors' key, assign a list of the names of the authors that wrote the research paper/article.
+    - To the 'PMID' key, assign the PubMed ID of the research paper/article. It should be provided in the markdown filenames.
+    - To the 'section_header' key, assign the header of the section that the text comes from.
+    - To the 'subsection_header' key, assign the subsection header of the section that the text derives from.
+    - To the 'sub_subsection_header' key, assign the header of the subsection of the subsection that the text derives from.
+    - To the 'text' key, assign the text from the section/subsection/subsection of the subsection specified in this JSON object.
+    - To the 'genes_mentioned' key, assign a list of gene symbols of the genes mentioned across all images and markdown files.
+    - To the 'variant_count' key, assign the number of variants that appear in the input text.
+    - Do not count the genomic and proteomic variant descriptions of the same variant more than once.
+    - To the 'variants' key, assign a list of objects for each and every variant mentioned across all images and markdown files.
+    - Do not miss any variants out. 
+    - To the 'gene' key, assign the gene symbol of the gene that the corresponding variant is in. Use the markdown files and images for context.
+    - To the 'genomic_variant' key, assign the genomic variant as it appears in the corresponding text. HGVS nomenclature of the variant should be prioritised. It should start with 'g.' but might not. Remove any whitespace in the variant nomenclature.
+    - To the 'transcript_variant' key, assign the variant described at the transcript level as it appears in the corresponding text. HGVS nomenclature of the variant should be prioritised. It should start with 'c.' but might not. Remove any whitespace in the variant nomenclature.
+    - To the 'exon' key, assign the exon of the gene that the corresponding variant is in. Use the markdown file images for context.
+    - To the 'protein_variant' key, assign the variant described at the protein level as it appears in the corresponding text. HGVS nomenclature of the variant should be prioritised. It should start with 'p.' but might not. Remove any whitespace in the variant nomenclature.
+    - To the 'protein_domain' key, assign the protein domain of the protein that the corresponding variant is in. Use the markdown files and images for context.
+    - To the 'clinical_information' key, assign a comprehensive analysis and description of the clinical information related to the corresponding variant across all markdown files and images. Use the markdown files and images for context.
+    - To the 'clinical_significance' key, assign a comprehensive analysis and description of the corresponding text and the clinical significance of the corresponding variant across all markdown files and images. For example, is it functional information, genotype-to-phenotype information, population information, variant impact on gene/RNA/protein etc.? If multiple descriptions exist, list all of the descriptions. Use the markdown file that I sent earlier for context.
+    - To the 'frequency' key, assign the frequency of the corresponding variant as described in corresponding text. State the variables that the frequency is describing in detail.
+    - To the 'het_carriers' key, assign the number of affected carriers with the corresponding variant in a heterozygous genotype counted in the corresponding text.
+    - To the 'hom_carriers' key, assign the number of affected carriers with the corresponding variant in a homozygous genotype counted in the corresponding text.
+    - To the 'affected_carriers' key, assign the total number of affected carriers with the corresponding variant counted in the corresponding text.
+    - To the 'unaffected_carriers' key, assign the total number of unaffected carriers with the corresponding variant counted in the corresponding text.
+    - One meiosis is the inheritance of a variant from one affected individual to their affected child.
+    - To the 'number_of_meioses' key, assign the total number of meioses of the corresponding variant counted in the corresponding text.
+    - To the 'n_mentions' key, assign the total number of times the variant was mentioned throughout the corresponding text in any way, whether it be in its genomic, transcript or protein description or in an abbreviated format.
+    """
+
+    # The VLM needs to be assigned to a character so it understands the language used in the prompt more accurately.
+    # It also wants to distinguish the system prompt from the user's prompt. The role and corresponding prompt are
+    # defined in two separate dictionaries compiled in a list. The path to the image file is provided in the dictionary
+    # which defines the user's role.
+    messages = [
+        {
+            "role": "system",
+            "content": "You are a genomic clinical scientist with the ability to understand, analyse and interpret the "
+                       "content of research papers/articles/literature stored in markdown format and images."
+        },
+        {
+            "role": "user",
+            "content": f"{prompt}",
+            "images": images_list
+        }
+    ]
+
+    # The chat() function sends the above message to a specified model with additional parameters. The response is
+    # returned in JSON.
+    response = chat(
+        model = model,
+        messages = messages,
+        format="json",
+        options={
+            'temperature': 0.0,     # 0-1. Lower temperature makes the output more focused and consistent
+            'repeat_penalty': 1.0,  # Setting to 1.0 turns OFF the penalty that stops it from repeating itself.
+                                    # >1.0 increases the penalty for repetition, making repetition less likely.
+            'num_predict': 25000,   # Give the model plenty of room to write a long answer
+            'seed': 42,             # This combines with temperature to produce the EXACT same answer every single time.
+            #'num_ctx': 32768,       # Add this to handle the images + markdown files
+        }
+    )
+
+    # Log the VLM response to keep a record of what was returned by the vlm_ImageDescription function.
+    logger.info(f"vlm_TotalOutput response for PMID: {pmid}:")
+    logger.info(response["message"]["content"])
+
+    # The path to the markdown file, the file size of the markdown file, The path to the image file, the file size of
+    # the image file, the number of tokens it cost to query and receive a response from the VLM are all recorded in the
+    # 'ollama_token_costs.txt' file, in case the token cost needs to be evaluated.
+
+    makrdown_size = 0
+    for filepath in markdown_list:
+        makrdown_size = makrdown_size + os.path.getsize(filepath)
+
+    images_size = 0
+    for filepath in images_list:
+        images_size = images_size + os.path.getsize(filepath)
+
+    with open("ollama_token_costs.txt", 'a') as f:
+        f.write(f"{str(datetime.datetime.now())}\n"
+                f"Model: {model}\n"
+                f"vlm_TotalOutput\n"
+                f"PMID processed by VLM: {pmid}\n"
+                f"Size of markdown files: {makrdown_size} bytes\n"
+                f"Size of images: {os.path.getsize(images_size)} bytes\n"
+                f"Query costed: {response['prompt_eval_count']} tokens\n"
+                f"Response costed: {response['eval_count']} tokens\n"
+                f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n\n")
+
+    # Log the number of tokens it cost to generate the response.
+    logger.info(f"Query costed: {response['prompt_eval_count']} tokens")
+    logger.info(f"Response costed: {response['eval_count']} tokens")
+    logger.info(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
+
+    # The JSON response from the VLM is returned.
+    return response["message"]["content"]
+
+
+def vlm_ImageDescription_two(pmid, image, markdown_path=None):
+    """
+    This function sends a prompt to the VLM to provide a description of a figure or table from the a .pdf markdown,
+    using the .pdf markdown file for context. Captions and figures from the .pdf markdown file  are used to provide
+    context. The VLM returns a dictionary in JSON format, consisting of a 'description' key and a description
+    of the image assigned to it, along with additional metadata to assist with retrieval of the information from the
+    vector database.
+
+    :params: image_path: the filepath to the image file.
+             context: the text from the .pdf markdown file.
+             markdown_path: the filepath to the .pdf markdown file, to be recorded in the 'ollama_token_costs.txt'.
+
+    :return: JSON containing a description of the image, assigned to the 'description' key along with additional
+             metadata.
+    """
+
+    # This code can be used to read the text in the .pdf markdown file, instead of referring to the vlm_loadtext()
+    # function.
+    with open(markdown_path, "r", encoding='utf-8') as f:
+        context = f.read()
+
+    # The initial query sent to the VLM is assigned to the 'VLM_query' variable. It describes what the desired output
+    # should be and the subject of the query, along with some basic instructions.
+    VLM_query = (
+        'Process the image using the markdown file as context in accordance with the instructions below. Analyse the '
+        'image as comprehensively as possible. Do not omit any clinically relevant information. '
+        'Structure your output into the following JSON format:'
+        '{"PMID": "", "type": "", "figure_table_no": "", "sub_figure_table_no": "", "caption": "", "description": "", "table": "", "genes_mentioned": [], "variant_count": "", "variants": [{"gene": "", "genomic_variant": "", "transcript_variant": "", "exon": "", "protein_variant": "", "protein_domain": "", "clinical_information": "", "clinical_significance": "", "evidence": "", "frequency": "", "het_carriers": "", "hom_carriers": "", "affected_carriers": "", "unaffected_carriers": "", "number_of_meioses": "", "n_mentions": ""}]}'
+    )
+
+    # The context (text from the .pdf in markdown format), the VLM_query and instructions of how the image should be
+    # processed to achieve the desired outcome is assigned to the 'prompt' variable.
+    # Use <CONTEXT: {list(context)}> if using the vlm_loadContext() output for context.
+    prompt = f"""
+    ---------------------
+    CONTEXT: {context}
+    ---------------------
+    QUESTION: {VLM_query}
+    ---------------------
+    INSTRUCTIONS: 
+    - Extract as much information from the markdown file and image as possible.
+    - Use all of the content from the markdown file and image for context.
+    - Never hallucinate.
+    - Never speculate.
+    - Only use information from the markdown file and image for context.
+    - Match the image to an image legend or image caption or table legend or table caption or figure legend or figure caption in the markdown file. 
+    - Compare the information from the image to the information in the image legend or image caption or table legend or table caption or figure legend or figure caption to find which legend or caption describes the image most accurately.
+    - To string fields, enter the text "null" in the string field if information cannot be provided by the image/figure/table legend/caption.
+    - To a list field that cannot be populated, return [].
+    - Output RAW JSON only. Do not include any introductory text, markdown code blocks (```), or concluding remarks.
+    - Never miss a variant.
+    - Analyse the entire variant.
+    - Never omit keys in the JSON. 
+    - Never hallucinate.
+    - Never speculate.
+    - If you are unable to extract any clinically relevant information or cannot understand the information, let the user know.
+    - To the 'PMID' key, assign the PubMed ID of the research paper/article.
+    - To the 'type' key, if the image is a figure assign 'figure' but if the image is a table, assign 'table'.
+    - To the 'figure_table_no' key, assign the table or figure number in the caption or legend matched with the image from the markdown file that I sent to you earlier provided as context.
+    - To the 'sub_figure_table_no' key, assign the table or figure number in the caption/legend matched with the subsection of the image from the markdown file that I sent to you earlier provided as context. For example, 'B' would be assigned to this key for Figure 2B.
+    - To the 'caption' key, assign the text provided in the caption or legend matched with the image from the markdown file, verbatim.
+    - To the 'description' key, assign a comprehensive and profound analysis and description of the clinical information and significance of the image. Describe the image with intricate and accurate detail as if describing it to someone who cannot see the image. Use the text from the caption or legend matched with the image and content from the markdown files to support the explanation.
+    - To the 'table' key, if the image is of a table, assign a textualised version of the table that can be embedded by a text embedder.
+    - To the 'genes_mentioned' key, assign a list of the name of the genes mentioned in either the image or the caption/legend matched with the image from the markdown file as context.
+    - To the 'variant_count' key, assign the number of variants that appear in the image. Do not provide any more information than the total number of variants that appear in the image. Do not include any other characters to describe the number than integers.
+    - To the 'variants' key, assign a list of objects for each and every variant mentioned in either the image, or the caption or legend matched with the image from the markdown file provided as context. Do not miss any variants out. 
+    - To the 'gene' key, assign the gene symbol of the gene that the corresponding variant is in. Use the markdown file and images for context.
+    - To the 'genomic_variant' key, assign the genomic variant as it appears in the image and associated caption or legend. HGVS nomenclature of the variant should be prioritised. It should start with 'g.' but might not. Remove any whitespace in the variant nomenclature.
+    - To the 'transcript_variant' key, assign the variant described at the transcript level as it appears in the image and associated caption or legend. HGVS nomenclature of the variant should be prioritised. It should start with 'c.' but might not. Remove any whitespace in the variant nomenclature.
+    - To the 'exon' key, assign the exon of the gene that the corresponding variant is in. Use the markdown file and images for context.
+    - To the 'protein_variant' key, assign the variant described at the protein level as it appears in the image and associated caption or legend. HGVS nomenclature of the variant should be prioritised. It should start with 'p.' but might not. Remove any whitespace in the variant nomenclature.
+    - To the 'protein_domain' key, assign the protein domain of the protein that the corresponding variant is in.
+    - To the 'clinical_information' key, provide and assign a comprehensive and profound analysis and description of the clinical information related to the corresponding variant from the image, or the caption or legend matched with the image, or from the markdown file provided as context.
+    - To the 'clinical_significance' key, provide and assign a comprehensive analysis and description of the clinical significance of the corresponding variant from the image or the caption/legend matched with the image within the wider context provided by the markdown file.
+    - To the 'evidence' key, assign the verbatim text from the image, or the caption or legend matched with the image from the markdown file provided as context that was used to substantiate the clinical information and significance.
+    - To the 'frequency' key, assign the frequency of the corresponding variant as described in the image, or the caption or legend matched with the image from the markdown file provided as context.
+    - To the 'het_carriers' key, assign the number of affected carriers with the corresponding variant in a heterozygous genotype counted in the image, or the caption or legend matched with the image from the markdown file provided as context.
+    - To the 'hom_carriers' key, assign the number of affected carriers with the corresponding variant in a homozygous genotype counted in the image, or the caption or legend matched with the image from the markdown file provided as context.
+    - To the 'affected_carriers' key, assign the total number of affected carriers with the corresponding variant counted in the image, or the caption or legend matched with the image from the markdown file provided as context.
+    - To the 'unaffected_carriers' key, assign the total number of unaffected carriers with the corresponding variant counted in the image, or the caption or legend matched with the image from the markdown file provided as context.
+    - One meiosis is the inheritance of a variant from one affected individual to their affected child.
+    - To the 'number_of_meioses' key, assign the total number of meioses of the corresponding variant counted in the image, or the caption or legend matched with the image from the markdown file provided as context.
+    - To the 'n_mentions' key, assign the total number of times the variant was mentioned in the image, or the caption or legend matched with the image, in any way, whether it be in its genomic, transcript or protein description or in an abbreviated format.
+    """
+
+    # The VLM needs to be assigned to a character so it understands the language used in the prompt more accurately.
+    # It also wants to distinguish the system prompt from the user's prompt. The role and corresponding prompt are
+    # defined in two separate dictionaries compiled in a list. The path to the image file is provided in the dictionary
+    # which defines the user's role.
+    messages = [
+        {
+            "role": "system",
+            "content": "You are a genomic clinical scientist with the ability to understand, analyse and interpret the "
+                       "content of research papers, articles, and literature stored in markdown format. Use only "
+                       "content from the markdown files for context. Do not hallucinate. Do not speculate."
+        },
+        {
+            "role": "user",
+            "content": f"{prompt}",
+            "images": [image]
+        }
+    ]
+
+    # The chat() function sends the above message to a specified model with additional parameters. The response is
+    # returned in JSON.
+    response = chat(
+        model = model,
+        messages = messages,
+        format="json",
+        options={
+            'temperature': 0.0,     # 0-1. Lower temperature makes the output more focused and consistent
+            'repeat_penalty': 1.0,  # Setting to 1.0 turns OFF the penalty that stops it from repeating itself.
+                                    # >1.0 increases the penalty for repetition, making repetition less likely.
+            'num_predict': 25000,   # Give the model plenty of room to write a long answer
+            'seed': 42,             # This combines with temperature to produce the EXACT same answer every single time.
+            'num_ctx': 1000000,       # Add this to handle the image + markdown
+        }
+    )
+
+    # Log the VLM response to keep a record of what was returned by the vlm_ImageDescription function.
+    logger.info(f"vlm_ImageDescription_two response for {os.path.basename(image)}:")
+    logger.info(response["message"]["content"])
+
+    # The path to the markdown file, the file size of the markdown file, The path to the image file, the file size of
+    # the image file, the number of tokens it cost to query and receive a response from the VLM are all recorded in the
+    # 'ollama_token_costs.txt' file, in case the token cost needs to be evaluated.
+    with open("ollama_token_costs.txt", 'a') as f:
+        f.write(f"{str(datetime.datetime.now())}\n"
+                f"Model: {model}\n"
+                f"vlm_ImageDescription_two\n"
+                f"PMID processed by VLM: {pmid}\n"
+                f"Size of markdown file: {os.path.getsize(markdown_path)} bytes\n"
+                f"Path to image: {image}\n"
+                f"Size of image: {os.path.getsize(image)} bytes\n"
+                f"Query costed: {response['prompt_eval_count']} tokens\n"
+                f"Response costed: {response['eval_count']} tokens\n"
+                f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens\n\n")
+
+    # Log the number of tokens it cost to generate the response.
+    logger.info(f"Query costed: {response['prompt_eval_count']} tokens")
+    logger.info(f"Response costed: {response['eval_count']} tokens")
+    logger.info(f"Total cost: {response['prompt_eval_count'] + response['eval_count']} tokens")
+
+    # The JSON response from the VLM is returned.
     return response["message"]["content"]
